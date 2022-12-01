@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let elves = elves;
 
         println!("Max calories carried by single elf: {}", top_calorie_total(&elves, 1));
-        println!("Calorie total for top three elves: {:?}", top_calorie_total(&elves, 3));
+        println!("Calorie total for top three elves: {}", top_calorie_total(&elves, 3));
 
         Ok(())
     } else {
