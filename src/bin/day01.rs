@@ -2,6 +2,7 @@ use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use itertools::Itertools;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
@@ -39,19 +40,13 @@ struct Elf {
 impl Elf {
     fn try_from_calorie_list(lines: impl Iterator<Item = String>) -> Result<Vec<Elf>, Box<dyn Error>> {
         let mut elves = vec![];
-        let mut calorie_buffer = vec![];
 
-        for line in lines {
-            if line.is_empty() {
-                elves.push(Elf { calories: calorie_buffer.clone() });
-                calorie_buffer.clear();
-            } else {
-                calorie_buffer.push(line.parse::<u32>()?);
+        for (empty, group) in &lines.group_by(|line| line.is_empty()) {
+            if !empty {
+                elves.push(Elf { calories: group.map(|line| line.parse::<u32>())
+                    .collect::<Result<Vec<u32>, _>>()?
+                });
             }
-        }
-
-        if !calorie_buffer.is_empty() {
-            elves.push(Elf { calories: calorie_buffer.clone(), });
         }
 
         Ok(elves)

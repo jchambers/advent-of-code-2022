@@ -8,3 +8,4 @@ name = "day01"
 
 [dependencies]
 indoc = "1.0"
+itertools = "0.10.5"
