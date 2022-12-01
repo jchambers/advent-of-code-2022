@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .filter_map(|line| line.ok()),
         )?;
 
-        elves.sort_by(|a, b| b.total_calories().cmp(&a.total_calories()));
+        elves.sort_unstable_by_key(|elf| std::cmp::Reverse(elf.total_calories()));
         let elves = elves;
 
         println!("Max calories carried by single elf: {}", top_calorie_total(&elves, 1));
