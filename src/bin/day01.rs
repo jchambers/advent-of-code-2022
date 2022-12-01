@@ -8,28 +8,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
 
     if let Some(path) = args.get(1) {
-        let elves = Elf::try_from_calorie_list(
+        let mut elves = Elf::try_from_calorie_list(
             BufReader::new(File::open(path)?)
                 .lines()
                 .filter_map(|line| line.ok()),
         )?;
 
-        println!(
-            "Max calories carried by single elf: {}",
-            elves.iter().map(|elf| elf.total_calories()).max().unwrap()
-        );
+        elves.sort_by(|a, b| b.total_calories().cmp(&a.total_calories()));
+        let elves = elves;
 
-        let mut calorie_totals: Vec<u32> = elves.iter().map(|elf| elf.total_calories()).collect();
-
-        calorie_totals.sort();
-        let top_three_total: u32 = calorie_totals.iter().rev().take(3).sum();
-
-        println!("Calorie total for top three elves: {:?}", top_three_total);
+        println!("Max calories carried by single elf: {}", top_calorie_total(&elves, 1));
+        println!("Calorie total for top three elves: {:?}", top_calorie_total(&elves, 3));
 
         Ok(())
     } else {
         Err("Usage: day01 INPUT_FILE_PATH".into())
     }
+}
+
+fn top_calorie_total(elves: &[Elf], count: usize) -> u32 {
+    elves.iter()
+        .take(count)
+        .map(|elf| elf.total_calories())
+        .sum()
 }
 
 #[derive(Debug, Eq, PartialEq)]
