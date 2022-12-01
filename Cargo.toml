@@ -7,3 +7,4 @@ edition = "2021"
 name = "day01"
 
 [dependencies]
+indoc = "1.0"
