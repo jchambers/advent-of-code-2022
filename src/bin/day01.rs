@@ -27,6 +27,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn top_calorie_total(elves: &[Elf], count: usize) -> u32 {
+    // Sadly, `is_sorted` is still a nightly/experimental feature
+    // assert!(elves.is_sorted());
+
     elves.iter()
         .take(count)
         .map(|elf| elf.total_calories())
