@@ -6,6 +6,9 @@ edition = "2021"
 [[bin]]
 name = "day01"
 
+[[bin]]
+name = "day02"
+
 [dependencies]
 indoc = "1.0"
 itertools = "0.10.5"
