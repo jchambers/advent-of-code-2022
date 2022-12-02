@@ -54,20 +54,52 @@ impl RoundOutcome {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Shape {
     Rock,
     Paper,
     Scissors
 }
 
+impl TryFrom<usize> for Shape {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Rock),
+            1 => Ok(Paper),
+            2 => Ok(Scissors),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Shape {
+    fn try_from_opponent_shape_str(string: &str) -> Result<Self, Box<dyn Error>> {
+        match string {
+            "A" => Ok(Rock),
+            "B" => Ok(Paper),
+            "C" => Ok(Scissors),
+            _ => Err("Unrecognized opponent shape".into())
+        }
+    }
+
     fn value(&self) -> u32 {
         match self {
             Rock => 1,
             Paper => 2,
             Scissors => 3,
         }
+    }
+
+    /// Returns the shape a player must choose to win a round in which an opponent plays this shape
+    fn winning_move(&self) -> Shape {
+        Shape::try_from((*self as usize + 1) % 3).unwrap()
+    }
+
+    /// Returns the shape a player must choose to lose a round in which an opponent plays this shape
+    fn losing_move(&self) -> Shape {
+        Shape::try_from((*self as usize + 2) % 3).unwrap()
     }
 }
 
@@ -83,13 +115,7 @@ impl Round {
             return Err("Bad round string length".into());
         }
 
-        let opponent_shape = match &string[0..1] {
-            "A" => Rock,
-            "B" => Paper,
-            "C" => Scissors,
-            _ => return Err("Unrecognized opponent shape".into())
-        };
-
+        let opponent_shape = Shape::try_from_opponent_shape_str(&string[0..1])?;
         let self_shape = match &string[2..] {
             "X" => Rock,
             "Y" => Paper,
@@ -105,34 +131,11 @@ impl Round {
             return Err("Bad round string length".into());
         }
 
-        let opponent_shape = match &string[0..1] {
-            "A" => Rock,
-            "B" => Paper,
-            "C" => Scissors,
-            _ => return Err("Unrecognized opponent shape".into())
-        };
-
+        let opponent_shape = Shape::try_from_opponent_shape_str(&string[0..1])?;
         let self_shape = match &string[2..] {
-            // Lose
-            "X" => match opponent_shape {
-                Rock => Scissors,
-                Paper => Rock,
-                Scissors => Paper,
-            },
-
-            // Draw
-            "Y" => match opponent_shape {
-                Rock => Rock,
-                Paper => Paper,
-                Scissors => Scissors,
-            },
-
-            // Win
-            "Z" => match opponent_shape {
-                Rock => Paper,
-                Paper => Scissors,
-                Scissors => Rock,
-            },
+            "X" => opponent_shape.losing_move(),
+            "Y" => opponent_shape,
+            "Z" => opponent_shape.winning_move(),
             _ => return Err("Unrecognized self shape".into())
         };
 
@@ -140,22 +143,11 @@ impl Round {
     }
 
     fn score(&self) -> u32 {
-        let outcome = match self.self_shape {
-            Rock => match self.opponent_shape {
-                Rock => Draw,
-                Paper => Lose,
-                Scissors => Win,
-            }
-            Paper => match self.opponent_shape {
-                Rock => Win,
-                Paper => Draw,
-                Scissors => Lose,
-            }
-            Scissors => match self.opponent_shape {
-                Rock => Lose,
-                Paper => Win,
-                Scissors => Draw,
-            }
+        let outcome = match (self.opponent_shape as isize - self.self_shape as isize + 3) % 3 {
+            0 => Draw,
+            1 => Lose,
+            2 => Win,
+            _ => unreachable!(),
         };
 
         outcome.score() + self.self_shape.value()
@@ -185,5 +177,19 @@ mod test {
         assert_eq!(8, Round { opponent_shape: Rock, self_shape: Paper }.score());
         assert_eq!(1, Round { opponent_shape: Paper, self_shape: Rock }.score());
         assert_eq!(6, Round { opponent_shape: Scissors, self_shape: Scissors }.score());
+    }
+
+    #[test]
+    fn test_winning_move() {
+        assert_eq!(Paper, Rock.winning_move());
+        assert_eq!(Scissors, Paper.winning_move());
+        assert_eq!(Rock, Scissors.winning_move());
+    }
+
+    #[test]
+    fn test_losing_move() {
+        assert_eq!(Scissors, Rock.losing_move());
+        assert_eq!(Rock, Paper.losing_move());
+        assert_eq!(Paper, Scissors.losing_move());
     }
 }
