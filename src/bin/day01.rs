@@ -67,7 +67,7 @@ mod test {
 
     use indoc::indoc;
 
-    const TEST_INPUT: &'static str = indoc! {"
+    const TEST_INPUT: &str = indoc! {"
         1000
         2000
         3000
@@ -96,7 +96,7 @@ mod test {
 
         assert_eq!(
             expected,
-            Elf::try_from_calorie_list(TEST_INPUT.lines().map(|line| String::from(line))).unwrap()
+            Elf::try_from_calorie_list(TEST_INPUT.lines().map(String::from)).unwrap()
         );
     }
 }

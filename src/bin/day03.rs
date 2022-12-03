@@ -49,13 +49,9 @@ impl Rucksack {
         let first_compartment = &items[0..items.len() / 2];
         let second_compartment = &items[(items.len() / 2)..];
 
-        for candidate in first_compartment {
-            if second_compartment.contains(candidate) {
-                return Some(*candidate)
-            }
-        }
-
-        None
+        first_compartment.iter()
+            .find(|candidate| second_compartment.contains(candidate))
+            .copied()
     }
 
     fn priority(item: char) -> u32 {
