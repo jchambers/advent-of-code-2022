@@ -13,12 +13,23 @@ fn main() -> Result<(), Box<dyn Error>> {
             .map(|line| Rucksack { items: line })
             .collect();
 
-        let priority_sum: u32 = rucksacks.iter()
-            .filter_map(|rucksack| rucksack.find_misplaced_item())
-            .map(|item| Rucksack::priority(item))
-            .sum();
+        {
+            let misplaced_item_priority_sum: u32 = rucksacks.iter()
+                .filter_map(|rucksack| rucksack.find_misplaced_item())
+                .map(Rucksack::priority)
+                .sum();
 
-        println!("Priority sum: {}", priority_sum);
+            println!("Priority sum for misplaced items: {}", misplaced_item_priority_sum);
+        }
+
+        {
+            let common_item_priority_sum: u32 = rucksacks.chunks(3)
+                .filter_map(|chunk| Rucksack::find_common_item(&chunk[0], &chunk[1], &chunk[2]))
+                .map(Rucksack::priority)
+                .sum();
+
+            println!("Priority sum for common items: {}", common_item_priority_sum);
+        }
 
         Ok(())
     } else {
@@ -26,6 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
+#[derive(Debug)]
 struct Rucksack {
     items: String,
 }
@@ -53,6 +65,11 @@ impl Rucksack {
             _ => panic!()
         }
     }
+
+    fn find_common_item(a: &Rucksack, b: &Rucksack, c: &Rucksack) -> Option<char> {
+        a.items.chars()
+            .find(|&candidate| b.items.contains(candidate) && c.items.contains(candidate))
+    }
 }
 
 #[cfg(test)]
@@ -77,5 +94,20 @@ mod test {
         assert_eq!(22, Rucksack::priority('v'));
         assert_eq!(20, Rucksack::priority('t'));
         assert_eq!(19, Rucksack::priority('s'));
+    }
+
+    #[test]
+    fn test_find_common_item() {
+        assert_eq!(Some('r'), Rucksack::find_common_item(
+            &Rucksack { items: String::from("vJrwpWtwJgWrhcsFMMfFFhFp") },
+            &Rucksack { items: String::from("jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL") },
+            &Rucksack { items: String::from("PmmdzqPrVvPwwTWBwg") },
+        ));
+
+        assert_eq!(Some('Z'), Rucksack::find_common_item(
+            &Rucksack { items: String::from("wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn") },
+            &Rucksack { items: String::from("ttgJtRGJQctTZtZT") },
+            &Rucksack { items: String::from("CrZsJsPPZsGzwwsLwLmpwMDw") },
+        ));
     }
 }
