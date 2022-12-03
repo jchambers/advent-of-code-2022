@@ -9,8 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(path) = args.get(1) {
         let rucksacks: Vec<Rucksack> = BufReader::new(File::open(path)?)
             .lines()
-            .filter_map(|line| line.ok())
-            .map(|line| Rucksack { items: line })
+            .filter_map(|line| line.map(|items| Rucksack { items }).ok())
             .collect();
 
         {
@@ -23,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         {
-            let common_item_priority_sum: u32 = rucksacks.chunks(3)
+            let common_item_priority_sum: u32 = rucksacks.chunks_exact(3)
                 .filter_map(|chunk| Rucksack::find_common_item(&chunk[0], &chunk[1], &chunk[2]))
                 .map(Rucksack::priority)
                 .sum();
