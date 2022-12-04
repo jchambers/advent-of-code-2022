@@ -12,6 +12,9 @@ name = "day02"
 [[bin]]
 name = "day03"
 
+[[bin]]
+name = "day04"
+
 [dependencies]
 indoc = "1.0"
 itertools = "0.10.5"
