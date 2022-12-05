@@ -55,7 +55,7 @@ impl FromStr for CrateStacks {
         };
 
         string.lines()
-            .filter(|line| line.contains('['))
+            .take_while(|line| line.contains('['))
             .for_each(|line| {
                 line.chars()
                     .skip(1)
