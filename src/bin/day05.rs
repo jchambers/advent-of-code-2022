@@ -9,12 +9,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(path) = args.get(1) {
-        let crate_stacks = CrateStacks::from_str(fs::read_to_string(path)?.as_str())?;
+        {
+            let crate_stacks = CrateStacks::from_str(fs::read_to_string(path)?.as_str())?;
 
-        println!(
-            "Top crates after applying instructions: {}",
-            crate_stacks.top_crates_after_instructions()
-        );
+            println!(
+                "Top crates after applying instructions one crate at a time: {}",
+                crate_stacks.top_crates_after_instructions_individual()
+            );
+        }
+
+        {
+            let crate_stacks = CrateStacks::from_str(fs::read_to_string(path)?.as_str())?;
+
+            println!(
+                "Top crates after applying instructions to groups of crates: {}",
+                crate_stacks.top_crates_after_instructions_group()
+            );
+        }
 
         Ok(())
     } else {
@@ -52,7 +63,7 @@ impl FromStr for CrateStacks {
                     .enumerate()
                     .filter(|(_, c)| *c != ' ')
                     .for_each(|(i, c)| {
-                        stacks[i].push_back(c);
+                        stacks[i].push_front(c);
                     });
             });
 
@@ -67,17 +78,32 @@ impl FromStr for CrateStacks {
 }
 
 impl CrateStacks {
-    fn top_crates_after_instructions(mut self) -> String {
+    fn top_crates_after_instructions_individual(mut self) -> String {
         self.instructions.iter()
             .for_each(|instruction| {
                 for _ in 0..instruction.quantity {
-                    let c = self.stacks[instruction.source - 1].pop_front().expect("Stack should not be empty");
-                    self.stacks[instruction.destination - 1].push_front(c);
+                    let c = self.stacks[instruction.source - 1].pop_back().expect("Stack should not be empty");
+                    self.stacks[instruction.destination - 1].push_back(c);
                 }
             });
 
         self.stacks.iter()
-            .map(|stack| stack.front().unwrap_or(&' '))
+            .map(|stack| stack.back().unwrap_or(&' '))
+            .collect()
+    }
+
+    fn top_crates_after_instructions_group(mut self) -> String {
+        self.instructions.iter()
+            .for_each(|instruction| {
+                let stack_len = self.stacks[instruction.source - 1].len();
+                let mut moved_crates =
+                    self.stacks[instruction.source - 1].split_off(stack_len - instruction.quantity);
+
+                self.stacks[instruction.destination - 1].append(&mut moved_crates);
+            });
+
+        self.stacks.iter()
+            .map(|stack| stack.back().unwrap_or(&' '))
             .collect()
     }
 }
@@ -137,8 +163,14 @@ move 1 from 1 to 2";
     }
 
     #[test]
-    fn test_top_crates_after_instructions() {
+    fn test_top_crates_after_instructions_individual() {
         let stacks = CrateStacks::from_str(TEST_STACKS).unwrap();
-        assert_eq!("CMZ", stacks.top_crates_after_instructions());
+        assert_eq!("CMZ", stacks.top_crates_after_instructions_individual());
+    }
+
+    #[test]
+    fn test_top_crates_after_instructions_group() {
+        let stacks = CrateStacks::from_str(TEST_STACKS).unwrap();
+        assert_eq!("MCD", stacks.top_crates_after_instructions_group());
     }
 }
