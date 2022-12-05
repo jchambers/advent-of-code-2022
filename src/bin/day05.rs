@@ -141,16 +141,19 @@ impl FromStr for Instruction {
 #[cfg(test)]
 mod test {
     use super::*;
+    use indoc::indoc;
 
-    const TEST_STACKS: &str = "    [D]
-[N] [C]
-[Z] [M] [P]
- 1   2   3
+    const TEST_STACKS: &str = indoc! {"
+             [D]
+         [N] [C]
+         [Z] [M] [P]
+          1   2   3
 
-move 1 from 2 to 1
-move 3 from 1 to 3
-move 2 from 2 to 1
-move 1 from 1 to 2";
+         move 1 from 2 to 1
+         move 3 from 1 to 3
+         move 2 from 2 to 1
+         move 1 from 1 to 2
+    "};
 
     #[test]
     fn test_instruction_from_string() {
