@@ -87,9 +87,7 @@ impl CrateStacks {
                 }
             });
 
-        self.stacks.iter()
-            .map(|stack| stack.back().unwrap_or(&' '))
-            .collect()
+        self.top_crates()
     }
 
     fn top_crates_after_instructions_group(mut self) -> String {
@@ -102,6 +100,10 @@ impl CrateStacks {
                 self.stacks[instruction.destination - 1].append(&mut moved_crates);
             });
 
+        self.top_crates()
+    }
+
+    fn top_crates(self) -> String {
         self.stacks.iter()
             .map(|stack| stack.back().unwrap_or(&' '))
             .collect()
