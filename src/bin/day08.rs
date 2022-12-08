@@ -1,6 +1,7 @@
 use std::error::Error;
-use std::{cmp, fs, iter};
+use std::{fs, iter};
 use std::str::FromStr;
+use itertools::iproduct;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -56,13 +57,9 @@ impl Forest {
     fn visible_trees(&self) -> usize {
         let mut visible_trees = vec![false; self.trees.len()];
 
-        for x in 0..self.width {
-            for y in 0..self.width {
-                if self.visible(x, y) {
-                    visible_trees[self.index(x, y)] = true
-                }
-            }
-        }
+        iproduct!(0..self.width, 0..self.width)
+            .filter(|(x, y)| self.visible(*x, *y))
+            .for_each(|(x, y)| visible_trees[self.index(x, y)] = true);
 
         visible_trees.iter()
             .filter(|&&visible| visible)
@@ -106,34 +103,30 @@ impl Forest {
         ];
 
         rays.iter_mut()
-            .map(|ray| {
-                ray
-                    .map(|(a, b)| self.tree_height(a, b))
-                    .scan(false, |blocked: &mut bool, height: u8|
-                        if *blocked {
-                            None
-                        } else {
-                            if height >= self.tree_height(x, y) {
-                                *blocked = true;
-                            }
+            .map(|ray| ray
+                .map(|(a, b)| self.tree_height(a, b))
+                .scan(false, |blocked: &mut bool, height: u8|
+                    if *blocked {
+                        None
+                    } else {
+                        if height >= self.tree_height(x, y) {
+                            // This is a little sneaky; if we get blocked by a tree, we can still
+                            // see the blocking tree and want to count it. It's the NEXT one (i.e.
+                            // the tree BEHIND the tall tree) that we can't see.
+                            *blocked = true;
+                        }
 
-                            Some(height)
-                        })
-                    .count()
-            })
+                        Some(height)
+                    })
+                .count())
             .product()
     }
 
     fn max_scenic_score(&self) -> usize {
-        let mut max_scenic_score = 0;
-
-        for x in 0..self.width {
-            for y in 0..self.width {
-                max_scenic_score = cmp::max(max_scenic_score, self.scenic_score(x, y));
-            }
-        }
-
-        max_scenic_score
+        iproduct!(0..self.width, 0..self.width)
+            .map(|(x, y)| self.scenic_score(x, y))
+            .max()
+            .unwrap_or(0)
     }
 }
 
