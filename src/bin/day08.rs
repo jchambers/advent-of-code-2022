@@ -87,66 +87,38 @@ impl Forest {
     }
 
     fn scenic_score(&self, x: usize, y: usize) -> usize {
+        let scan_trees = |blocked: &mut bool, height: u8| {
+            if *blocked {
+                None
+            } else {
+                if height >= self.tree_height(x, y) {
+                    *blocked = true;
+                }
+
+                Some(height)
+            }
+        };
+
         let visible_to_left = (0..x)
             .rev()
             .map(|a| self.tree_height(a, y))
-            .scan(false, |blocked, height| {
-                if *blocked {
-                    None
-                } else {
-                    if height >= self.tree_height(x, y) {
-                        *blocked = true;
-                    }
-
-                    Some(height)
-                }
-            })
+            .scan(false, scan_trees)
             .count();
 
         let visible_to_right = (x + 1..self.width)
             .map(|a| self.tree_height(a, y))
-            .scan(false, |blocked, height| {
-                if *blocked {
-                    None
-                } else {
-                    if height >= self.tree_height(x, y) {
-                        *blocked = true;
-                    }
-
-                    Some(height)
-                }
-            })
+            .scan(false, scan_trees)
             .count();
 
         let visible_above = (0..y)
             .rev()
             .map(|b| self.tree_height(x, b))
-            .scan(false, |blocked, height| {
-                if *blocked {
-                    None
-                } else {
-                    if height >= self.tree_height(x, y) {
-                        *blocked = true;
-                    }
-
-                    Some(height)
-                }
-            })
+            .scan(false, scan_trees)
             .count();
 
         let visible_below = (y + 1..self.width)
             .map(|b| self.tree_height(x, b))
-            .scan(false, |blocked, height| {
-                if *blocked {
-                    None
-                } else {
-                    if height >= self.tree_height(x, y) {
-                        *blocked = true;
-                    }
-
-                    Some(height)
-                }
-            })
+            .scan(false, scan_trees)
             .count();
 
         visible_to_left * visible_to_right * visible_above * visible_below
