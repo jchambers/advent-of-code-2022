@@ -58,11 +58,6 @@ impl Forest {
 
         for x in 0..self.width {
             for y in 0..self.width {
-                if x == 0 || y == 0 || x == self.width - 1 || y == self.width - 1 {
-                    visible_trees[self.index(x, y)] = true;
-                    continue;
-                }
-
                 let visible_from_left = (0..x).map(|a| self.tree_height(a, y))
                     .all(|height| height < self.tree_height(x, y));
 
