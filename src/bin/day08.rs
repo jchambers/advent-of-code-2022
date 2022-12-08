@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::fs;
+use std::{cmp, fs};
 use std::str::FromStr;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -7,7 +7,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(path) = args.get(1) {
         let forest = Forest::from_str(fs::read_to_string(path)?.as_str())?;
+
         println!("Visible trees: {}", forest.visible_trees());
+        println!("Max scenic score: {}", forest.max_scenic_score());
 
         Ok(())
     } else {
@@ -83,6 +85,84 @@ impl Forest {
             .filter(|&&visible| visible)
             .count()
     }
+
+    fn scenic_score(&self, x: usize, y: usize) -> usize {
+        let visible_to_left = (0..x)
+            .rev()
+            .map(|a| self.tree_height(a, y))
+            .scan(false, |blocked, height| {
+                if *blocked {
+                    None
+                } else {
+                    if height >= self.tree_height(x, y) {
+                        *blocked = true;
+                    }
+
+                    Some(height)
+                }
+            })
+            .count();
+
+        let visible_to_right = (x + 1..self.width)
+            .map(|a| self.tree_height(a, y))
+            .scan(false, |blocked, height| {
+                if *blocked {
+                    None
+                } else {
+                    if height >= self.tree_height(x, y) {
+                        *blocked = true;
+                    }
+
+                    Some(height)
+                }
+            })
+            .count();
+
+        let visible_above = (0..y)
+            .rev()
+            .map(|b| self.tree_height(x, b))
+            .scan(false, |blocked, height| {
+                if *blocked {
+                    None
+                } else {
+                    if height >= self.tree_height(x, y) {
+                        *blocked = true;
+                    }
+
+                    Some(height)
+                }
+            })
+            .count();
+
+        let visible_below = (y + 1..self.width)
+            .map(|b| self.tree_height(x, b))
+            .scan(false, |blocked, height| {
+                if *blocked {
+                    None
+                } else {
+                    if height >= self.tree_height(x, y) {
+                        *blocked = true;
+                    }
+
+                    Some(height)
+                }
+            })
+            .count();
+
+        visible_to_left * visible_to_right * visible_above * visible_below
+    }
+
+    fn max_scenic_score(&self) -> usize {
+        let mut max_scenic_score = 0;
+
+        for x in 0..self.width {
+            for y in 0..self.width {
+                max_scenic_score = cmp::max(max_scenic_score, self.scenic_score(x, y));
+            }
+        }
+
+        max_scenic_score
+    }
 }
 
 #[cfg(test)]
@@ -103,5 +183,12 @@ mod test {
         let forest = Forest::from_str(TEST_FOREST).unwrap();
 
         assert_eq!(21, forest.visible_trees());
+    }
+
+    #[test]
+    fn test_max_scenic_score() {
+        let forest = Forest::from_str(TEST_FOREST).unwrap();
+
+        assert_eq!(8, forest.max_scenic_score());
     }
 }
