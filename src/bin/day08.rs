@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::{cmp, fs};
+use std::{cmp, fs, iter};
 use std::str::FromStr;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -58,20 +58,8 @@ impl Forest {
 
         for x in 0..self.width {
             for y in 0..self.width {
-                let visible_from_left = (0..x).map(|a| self.tree_height(a, y))
-                    .all(|height| height < self.tree_height(x, y));
-
-                let visible_from_right = (x + 1..self.width).map(|a| self.tree_height(a, y))
-                    .all(|height| height < self.tree_height(x, y));
-
-                let visible_from_above = (0..y).map(|b| self.tree_height(x, b))
-                    .all(|height| height < self.tree_height(x, y));
-
-                let visible_from_below = (y + 1..self.width).map(|b| self.tree_height(x, b))
-                    .all(|height| height < self.tree_height(x, y));
-
-                if visible_from_left || visible_from_right || visible_from_above || visible_from_below {
-                    visible_trees[self.index(x, y)] = true;
+                if self.visible(x, y) {
+                    visible_trees[self.index(x, y)] = true
                 }
             }
         }
@@ -81,42 +69,59 @@ impl Forest {
             .count()
     }
 
+    fn visible(&self, x: usize, y: usize) -> bool {
+        let mut rays: [Box<dyn Iterator<Item = (usize, usize)>>; 4] = [
+            // From the left
+            Box::new((0..x).zip(iter::repeat(y))),
+
+            // From the right
+            Box::new((x + 1..self.width).zip(iter::repeat(y))),
+
+            // From above
+            Box::new(iter::repeat(x).zip(0..y)),
+
+            // From below
+            Box::new(iter::repeat(x).zip(y + 1..self.width)),
+        ];
+
+        let self_height = self.tree_height(x, y);
+
+        rays.iter_mut()
+            .any(|ray| ray.all(|(a, b)| self.tree_height(a, b) < self_height))
+    }
+
     fn scenic_score(&self, x: usize, y: usize) -> usize {
-        let scan_trees = |blocked: &mut bool, height: u8| {
-            if *blocked {
-                None
-            } else {
-                if height >= self.tree_height(x, y) {
-                    *blocked = true;
-                }
+        let mut rays: [Box<dyn Iterator<Item = (usize, usize)>>; 4] = [
+            // To the left
+            Box::new((0..x).rev().zip(iter::repeat(y))),
 
-                Some(height)
-            }
-        };
+            // To the right
+            Box::new((x + 1..self.width).zip(iter::repeat(y))),
 
-        let visible_to_left = (0..x)
-            .rev()
-            .map(|a| self.tree_height(a, y))
-            .scan(false, scan_trees)
-            .count();
+            // Above
+            Box::new(iter::repeat(x).zip((0..y).rev())),
 
-        let visible_to_right = (x + 1..self.width)
-            .map(|a| self.tree_height(a, y))
-            .scan(false, scan_trees)
-            .count();
+            // Below
+            Box::new(iter::repeat(x).zip(y + 1..self.width)),
+        ];
 
-        let visible_above = (0..y)
-            .rev()
-            .map(|b| self.tree_height(x, b))
-            .scan(false, scan_trees)
-            .count();
+        rays.iter_mut()
+            .map(|ray| {
+                ray
+                    .map(|(a, b)| self.tree_height(a, b))
+                    .scan(false, |blocked: &mut bool, height: u8|
+                        if *blocked {
+                            None
+                        } else {
+                            if height >= self.tree_height(x, y) {
+                                *blocked = true;
+                            }
 
-        let visible_below = (y + 1..self.width)
-            .map(|b| self.tree_height(x, b))
-            .scan(false, scan_trees)
-            .count();
-
-        visible_to_left * visible_to_right * visible_above * visible_below
+                            Some(height)
+                        })
+                    .count()
+            })
+            .product()
     }
 
     fn max_scenic_score(&self) -> usize {
