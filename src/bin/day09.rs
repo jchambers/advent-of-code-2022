@@ -18,8 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         {
             let mut rope = Rope::new(2);
 
-            motions.iter()
-                .for_each(|motion| rope.apply(motion));
+            motions.iter().for_each(|motion| rope.apply(motion));
 
             println!(
                 "Distinct positions visited by tail of 2-knot rope: {}",
@@ -30,8 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         {
             let mut rope = Rope::new(10);
 
-            motions.iter()
-                .for_each(|motion| rope.apply(motion));
+            motions.iter().for_each(|motion| rope.apply(motion));
 
             println!(
                 "Distinct positions visited by tail of 10-knot rope: {}",
@@ -49,7 +47,7 @@ enum Direction {
     Up,
     Down,
     Left,
-    Right
+    Right,
 }
 
 impl FromStr for Direction {
@@ -61,7 +59,7 @@ impl FromStr for Direction {
             "D" => Ok(Direction::Down),
             "L" => Ok(Direction::Left),
             "R" => Ok(Direction::Right),
-            _ => Err("Unrecognized direction".into())
+            _ => Err("Unrecognized direction".into()),
         }
     }
 }
@@ -98,25 +96,30 @@ impl Rope {
 
             for knot in 1..self.positions.len() {
                 // Only move a knot if it's not adjacent the knot in front of it
-                if (self.positions[knot].0 - self.positions[knot - 1].0).abs() > 1 || (self.positions[knot].1 - self.positions[knot - 1].1).abs() > 1 {
-                    self.positions[knot].0 += match self.positions[knot - 1].0.cmp(&self.positions[knot].0) {
-                        Ordering::Greater => 1,
-                        Ordering::Equal => 0,
-                        Ordering::Less => -1
-                    };
+                if (self.positions[knot].0 - self.positions[knot - 1].0).abs() > 1
+                    || (self.positions[knot].1 - self.positions[knot - 1].1).abs() > 1
+                {
+                    self.positions[knot].0 +=
+                        match self.positions[knot - 1].0.cmp(&self.positions[knot].0) {
+                            Ordering::Greater => 1,
+                            Ordering::Equal => 0,
+                            Ordering::Less => -1,
+                        };
 
-                    self.positions[knot].1 += match self.positions[knot - 1].1.cmp(&self.positions[knot].1) {
-                        Ordering::Greater => 1,
-                        Ordering::Equal => 0,
-                        Ordering::Less => -1
-                    };
+                    self.positions[knot].1 +=
+                        match self.positions[knot - 1].1.cmp(&self.positions[knot].1) {
+                            Ordering::Greater => 1,
+                            Ordering::Equal => 0,
+                            Ordering::Less => -1,
+                        };
                 } else {
                     // No knots farther down the chain will move if this knot didn't move
                     break;
                 }
             }
 
-            self.distinct_tail_positions.insert(self.positions[self.positions.len() - 1]);
+            self.distinct_tail_positions
+                .insert(self.positions[self.positions.len() - 1]);
         }
     }
 }
@@ -166,7 +169,8 @@ mod test {
     #[test]
     fn test_distinct_tail_positions() {
         {
-            let motions: Vec<Motion> = TEST_MOTIONS.lines()
+            let motions: Vec<Motion> = TEST_MOTIONS
+                .lines()
                 .map(Motion::from_str)
                 .collect::<Result<_, _>>()
                 .unwrap();
@@ -174,8 +178,7 @@ mod test {
             {
                 let mut rope = Rope::new(2);
 
-                motions.iter()
-                    .for_each(|motion| rope.apply(motion));
+                motions.iter().for_each(|motion| rope.apply(motion));
 
                 assert_eq!(13, rope.distinct_tail_positions.len());
             }
@@ -183,22 +186,21 @@ mod test {
             {
                 let mut rope = Rope::new(10);
 
-                motions.iter()
-                    .for_each(|motion| rope.apply(motion));
+                motions.iter().for_each(|motion| rope.apply(motion));
 
                 assert_eq!(1, rope.distinct_tail_positions.len());
             }
         }
 
-        let motions: Vec<Motion> = LONGER_TEST_MOTIONS.lines()
+        let motions: Vec<Motion> = LONGER_TEST_MOTIONS
+            .lines()
             .map(Motion::from_str)
             .collect::<Result<_, _>>()
             .unwrap();
 
         let mut rope = Rope::new(10);
 
-        motions.iter()
-            .for_each(|motion| rope.apply(motion));
+        motions.iter().for_each(|motion| rope.apply(motion));
 
         assert_eq!(36, rope.distinct_tail_positions.len());
     }
