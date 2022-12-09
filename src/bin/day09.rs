@@ -69,6 +69,21 @@ struct Motion {
     magnitude: i32,
 }
 
+impl FromStr for Motion {
+    type Err = Box<dyn Error>;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        if let [direction, magnitude] = string.split(' ').collect::<Vec<&str>>().as_slice() {
+            Ok(Motion {
+                direction: Direction::from_str(direction)?,
+                magnitude: magnitude.parse()?,
+            })
+        } else {
+            Err("Could not parse motion".into())
+        }
+    }
+}
+
 struct Rope {
     positions: Vec<(i32, i32)>,
     distinct_tail_positions: HashSet<(i32, i32)>,
@@ -120,21 +135,6 @@ impl Rope {
 
             self.distinct_tail_positions
                 .insert(self.positions[self.positions.len() - 1]);
-        }
-    }
-}
-
-impl FromStr for Motion {
-    type Err = Box<dyn Error>;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        if let [direction, magnitude] = string.split(' ').collect::<Vec<&str>>().as_slice() {
-            Ok(Motion {
-                direction: Direction::from_str(direction)?,
-                magnitude: magnitude.parse()?,
-            })
-        } else {
-            Err("Could not parse motion".into())
         }
     }
 }
