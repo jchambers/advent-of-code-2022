@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
@@ -20,6 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .sum();
 
         println!("Sum of signal strengths: {}", total_signal_strength);
+        println!("{}", video_system);
 
         Ok(())
     } else {
@@ -51,6 +53,47 @@ impl VideoSystem {
         }
 
         unreachable!()
+    }
+}
+
+impl Display for VideoSystem {
+
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut pixels = [false; 240];
+        let mut x: i32 = 1;
+        let mut cycle: usize = 0;
+
+        for instruction in &self.instructions {
+            let (delta_cycle, delta_x) = match instruction {
+                Instruction::Noop => (1, 0),
+                Instruction::AddX(delta) => (2, *delta),
+            };
+
+            for _ in 0..delta_cycle {
+                if (((cycle % 40) as i32 - x) as isize).abs() <= 1 {
+                    pixels[cycle] = true;
+                }
+
+                cycle += 1;
+            }
+
+            x += delta_x;
+
+            if cycle >= 240 {
+                break;
+            }
+        }
+
+        pixels
+            .chunks_exact(40)
+            .map(|chunk| chunk.iter().map(|&pixel| {
+                if pixel {
+                    '█'
+                } else {
+                    ' '
+                }
+            }).collect::<String>())
+            .try_for_each(|row| writeln!(f, "{}", row))
     }
 }
 
@@ -241,5 +284,16 @@ mod test {
         assert_eq!(2940, video_system.signal_strength(140));
         assert_eq!(2880, video_system.signal_strength(180));
         assert_eq!(3960, video_system.signal_strength(220));
+    }
+
+    fn _test_format() {
+        let instructions: Vec<Instruction> = TEST_INSTRUCTIONS.lines()
+            .map(Instruction::from_str)
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        let video_system = VideoSystem { instructions };
+
+        println!("{}", video_system);
     }
 }
