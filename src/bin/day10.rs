@@ -16,7 +16,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let video_system = VideoSystem { instructions };
 
-        let total_signal_strength: i32 = [20, 60, 100, 140, 180, 220].iter()
+        let total_signal_strength: i32 = [20, 60, 100, 140, 180, 220]
+            .iter()
             .map(|&cycle| video_system.signal_strength(cycle))
             .sum();
 
@@ -45,7 +46,7 @@ impl VideoSystem {
             };
 
             if current_cycle + delta_cycle > cycle {
-                return x * cycle
+                return x * cycle;
             }
 
             current_cycle += delta_cycle;
@@ -57,7 +58,6 @@ impl VideoSystem {
 }
 
 impl Display for VideoSystem {
-
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut pixels = [false; 240];
         let mut x: i32 = 1;
@@ -86,13 +86,12 @@ impl Display for VideoSystem {
 
         pixels
             .chunks_exact(40)
-            .map(|chunk| chunk.iter().map(|&pixel| {
-                if pixel {
-                    '█'
-                } else {
-                    ' '
-                }
-            }).collect::<String>())
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .map(|&pixel| if pixel { '█' } else { ' ' })
+                    .collect::<String>()
+            })
             .try_for_each(|row| writeln!(f, "{}", row))
     }
 }
@@ -117,8 +116,8 @@ impl FromStr for Instruction {
 
 #[cfg(test)]
 mod test {
-    use indoc::indoc;
     use super::*;
+    use indoc::indoc;
 
     const TEST_INSTRUCTIONS: &str = indoc! {"
         addx 15
@@ -271,7 +270,8 @@ mod test {
 
     #[test]
     fn test_signal_strength() {
-        let instructions: Vec<Instruction> = TEST_INSTRUCTIONS.lines()
+        let instructions: Vec<Instruction> = TEST_INSTRUCTIONS
+            .lines()
             .map(Instruction::from_str)
             .collect::<Result<_, _>>()
             .unwrap();
@@ -287,7 +287,8 @@ mod test {
     }
 
     fn _test_format() {
-        let instructions: Vec<Instruction> = TEST_INSTRUCTIONS.lines()
+        let instructions: Vec<Instruction> = TEST_INSTRUCTIONS
+            .lines()
             .map(Instruction::from_str)
             .collect::<Result<_, _>>()
             .unwrap();
