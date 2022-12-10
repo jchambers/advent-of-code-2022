@@ -35,31 +35,8 @@ struct VideoSystem {
 }
 
 impl VideoSystem {
-    fn signal_strength(&self, cycle: i32) -> i32 {
-        let mut current_cycle = 1;
-        let mut x = 1;
-
-        for instruction in &self.instructions {
-            let (delta_cycle, delta_x) = match instruction {
-                Instruction::Noop => (1, 0),
-                Instruction::AddX(delta) => (2, *delta),
-            };
-
-            if current_cycle + delta_cycle > cycle {
-                return x * cycle;
-            }
-
-            current_cycle += delta_cycle;
-            x += delta_x;
-        }
-
-        unreachable!()
-    }
-}
-
-impl Display for VideoSystem {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut pixels = [false; 240];
+    fn register_values(&self) -> [i32; 240] {
+        let mut register_values = [0; 240];
         let mut x: i32 = 1;
         let mut cycle: usize = 0;
 
@@ -70,10 +47,7 @@ impl Display for VideoSystem {
             };
 
             for _ in 0..delta_cycle {
-                if (((cycle % 40) as i32 - x) as isize).abs() <= 1 {
-                    pixels[cycle] = true;
-                }
-
+                register_values[cycle] = x;
                 cycle += 1;
             }
 
@@ -84,7 +58,21 @@ impl Display for VideoSystem {
             }
         }
 
-        pixels
+        register_values
+    }
+
+    fn signal_strength(&self, cycle: usize) -> i32 {
+        self.register_values()[cycle - 1] * cycle as i32
+    }
+}
+
+impl Display for VideoSystem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.register_values()
+            .iter()
+            .enumerate()
+            .map(|(cycle, x)| (((cycle % 40) as i32 - x) as isize).abs() <= 1)
+            .collect::<Vec<bool>>()
             .chunks_exact(40)
             .map(|chunk| {
                 chunk
