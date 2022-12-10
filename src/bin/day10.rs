@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         Ok(())
     } else {
-        Err("Usage: day09 INPUT_FILE_PATH".into())
+        Err("Usage: day10 INPUT_FILE_PATH".into())
     }
 }
 
