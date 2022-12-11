@@ -43,7 +43,7 @@ impl MonkeyGroup {
         for (empty, group) in &string.lines().group_by(|line| line.is_empty()) {
             if !empty {
                 monkeys.push(Monkey::from_str(
-                    group.intersperse("\n").collect::<String>().as_str(),
+                    group.collect::<Vec<&str>>().join("\n").as_str(),
                 )?);
             }
         }
