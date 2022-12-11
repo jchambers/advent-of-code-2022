@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::error::Error;
 use std::fs;
 use std::str::FromStr;
@@ -38,15 +37,10 @@ struct MonkeyGroup {
 
 impl MonkeyGroup {
     fn from_str(string: &str, worry_divisor: u64) -> Result<Self, Box<dyn Error>> {
-        let mut monkeys = vec![];
-
-        for (empty, group) in &string.lines().group_by(|line| line.is_empty()) {
-            if !empty {
-                monkeys.push(Monkey::from_str(
-                    group.collect::<Vec<&str>>().join("\n").as_str(),
-                )?);
-            }
-        }
+        let monkeys: Vec<Monkey> = string
+            .split("\n\n")
+            .map(Monkey::from_str)
+            .collect::<Result<_, _>>()?;
 
         Ok(MonkeyGroup {
             monkeys,
