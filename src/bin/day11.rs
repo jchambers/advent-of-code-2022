@@ -9,6 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(path) = args.get(1) {
         {
             let monkey_group = MonkeyGroup::from_str(fs::read_to_string(path)?.as_str(), 3)?;
+
             println!(
                 "Monkey business after 20 rounds with worry divisor of 3: {}",
                 monkey_group.monkey_business(20)
@@ -17,6 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         {
             let monkey_group = MonkeyGroup::from_str(fs::read_to_string(path)?.as_str(), 1)?;
+
             println!(
                 "Monkey business after 10,000 rounds with worry divisor of 1: {}",
                 monkey_group.monkey_business(10_000)
@@ -111,43 +113,33 @@ impl FromStr for Monkey {
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let mut lines = string.lines();
 
-        if let Some(monkey_id_line) = lines.next() {
-            if !monkey_id_line.starts_with("Monkey ") {
-                return Err("Bad monkey ID line".into());
-            }
-        } else {
-            return Err("No monkey ID line".into());
-        }
+        let _id: usize = lines
+            .next()
+            .and_then(|line| line.strip_prefix("Monkey "))
+            .and_then(|line| line.strip_suffix(':'))
+            .ok_or("No monkey ID line")?
+            .parse()?;
 
-        let items: Vec<u64> = if let Some(starting_items_line) = lines.next() {
-            if let ["  Starting items", worry_levels] = starting_items_line
-                .split(": ")
-                .collect::<Vec<&str>>()
-                .as_slice()
-            {
-                worry_levels
-                    .split(", ")
-                    .map(|worry_level| worry_level.parse())
-                    .collect::<Result<_, _>>()?
-            } else {
-                return Err("Could not parse starting items".into());
-            }
-        } else {
-            return Err("No starting items line".into());
-        };
+        let items: Vec<u64> = lines
+            .next()
+            .and_then(|line| line.strip_prefix("  Starting items: "))
+            .ok_or("No starting items line")?
+            .split(", ")
+            .map(|worry_level| worry_level.parse())
+            .collect::<Result<_, _>>()?;
 
-        let operation = if let Some(operation_line) = lines
+        let operation = match lines
             .next()
             .and_then(|line| line.strip_prefix("  Operation: new = "))
+            .ok_or("No operation line")?
+            .split(' ')
+            .collect::<Vec<&str>>()
+            .as_slice()
         {
-            match operation_line.split(' ').collect::<Vec<&str>>().as_slice() {
-                ["old", "+", addend] => Operation::Add(addend.parse()?),
-                ["old", "*", "old"] => Operation::Square,
-                ["old", "*", multiplier] => Operation::Multiply(multiplier.parse()?),
-                _ => return Err("Could not parse operation".into()),
-            }
-        } else {
-            return Err("No operation line".into());
+            ["old", "+", addend] => Operation::Add(addend.parse()?),
+            ["old", "*", "old"] => Operation::Square,
+            ["old", "*", multiplier] => Operation::Multiply(multiplier.parse()?),
+            _ => return Err("Could not parse operation".into()),
         };
 
         let modulus: u64 = lines
