@@ -1,7 +1,7 @@
+use itertools::Itertools;
 use std::error::Error;
 use std::fs;
 use std::str::FromStr;
-use itertools::Itertools;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -9,12 +9,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(path) = args.get(1) {
         {
             let monkey_group = MonkeyGroup::from_str(fs::read_to_string(path)?.as_str(), 3)?;
-            println!("Monkey business after 20 rounds with worry divisor of 3: {}", monkey_group.monkey_business(20));
+            println!(
+                "Monkey business after 20 rounds with worry divisor of 3: {}",
+                monkey_group.monkey_business(20)
+            );
         }
 
         {
             let monkey_group = MonkeyGroup::from_str(fs::read_to_string(path)?.as_str(), 1)?;
-            println!("Monkey business after 10,000 rounds with worry divisor of 1: {}", monkey_group.monkey_business(10_000));
+            println!(
+                "Monkey business after 10,000 rounds with worry divisor of 1: {}",
+                monkey_group.monkey_business(10_000)
+            );
         }
 
         Ok(())
@@ -34,18 +40,20 @@ impl MonkeyGroup {
 
         for (empty, group) in &string.lines().group_by(|line| line.is_empty()) {
             if !empty {
-                monkeys.push(Monkey::from_str(group.intersperse("\n").collect::<String>().as_str())?);
+                monkeys.push(Monkey::from_str(
+                    group.intersperse("\n").collect::<String>().as_str(),
+                )?);
             }
         }
 
-        Ok(MonkeyGroup { monkeys, worry_divisor })
+        Ok(MonkeyGroup {
+            monkeys,
+            worry_divisor,
+        })
     }
 
     fn group_modulus(&self) -> u64 {
-        self.monkeys
-            .iter()
-            .map(|monkey| monkey.modulus)
-            .product()
+        self.monkeys.iter().map(|monkey| monkey.modulus).product()
     }
 
     fn monkey_business(mut self, rounds: usize) -> u64 {
@@ -55,7 +63,8 @@ impl MonkeyGroup {
             for m in 0..self.monkeys.len() {
                 let monkey = &self.monkeys[m];
 
-                let throws: Vec<(usize, u64)> = monkey.items
+                let throws: Vec<(usize, u64)> = monkey
+                    .items
                     .iter()
                     .map(|item| {
                         let worry_level = match monkey.operation {
@@ -75,8 +84,9 @@ impl MonkeyGroup {
 
                 inspections[m] += throws.len() as u64;
 
-                throws.into_iter()
-                    .for_each(|(destination, worry_level)| self.monkeys[destination].items.push(worry_level));
+                throws.into_iter().for_each(|(destination, worry_level)| {
+                    self.monkeys[destination].items.push(worry_level)
+                });
 
                 self.monkeys[m].items.clear();
             }
@@ -110,11 +120,15 @@ impl FromStr for Monkey {
         }
 
         let items: Vec<u64> = if let Some(starting_items_line) = lines.next() {
-            if let ["  Starting items", worry_levels] = starting_items_line.split(": ").collect::<Vec<&str>>().as_slice() {
-                worry_levels.split(", ")
+            if let ["  Starting items", worry_levels] = starting_items_line
+                .split(": ")
+                .collect::<Vec<&str>>()
+                .as_slice()
+            {
+                worry_levels
+                    .split(", ")
                     .map(|worry_level| worry_level.parse())
                     .collect::<Result<_, _>>()?
-
             } else {
                 return Err("Could not parse starting items".into());
             }
@@ -122,12 +136,15 @@ impl FromStr for Monkey {
             return Err("No starting items line".into());
         };
 
-        let operation = if let Some(operation_line) = lines.next().and_then(|line| line.strip_prefix("  Operation: new = ")) {
+        let operation = if let Some(operation_line) = lines
+            .next()
+            .and_then(|line| line.strip_prefix("  Operation: new = "))
+        {
             match operation_line.split(' ').collect::<Vec<&str>>().as_slice() {
                 ["old", "+", addend] => Operation::Add(addend.parse()?),
                 ["old", "*", "old"] => Operation::Square,
                 ["old", "*", multiplier] => Operation::Multiply(multiplier.parse()?),
-                _ => return Err("Could not parse operation".into())
+                _ => return Err("Could not parse operation".into()),
             }
         } else {
             return Err("No operation line".into());
@@ -169,8 +186,8 @@ enum Operation {
 
 #[cfg(test)]
 mod test {
-    use indoc::indoc;
     use super::*;
+    use indoc::indoc;
 
     const TEST_MONKEYS: &str = indoc! {"
         Monkey 0:
