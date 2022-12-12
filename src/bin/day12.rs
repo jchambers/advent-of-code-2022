@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::fs;
-use std::ops::Index;
 use std::str::FromStr;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -10,7 +9,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(path) = args.get(1) {
         let height_map = HeightMap::from_str(fs::read_to_string(path)?.as_str())?;
 
-        println!("Shortest path to exit: {}", height_map.shortest_path());
+        println!(
+            "Shortest path to exit from designated start: {}",
+            height_map.shortest_path(height_map.start).unwrap()
+        );
+
+        println!(
+            "Shortest path to exit from any starting point: {}",
+            height_map
+                .possible_starting_positions()
+                .iter()
+                .filter_map(|start| height_map.shortest_path(*start))
+                .min()
+                .unwrap()
+        );
 
         Ok(())
     } else {
@@ -47,7 +59,7 @@ impl FromStr for HeightMap {
                 'S' => {
                     start_index = i;
                     0
-                },
+                }
                 'E' => {
                     end_index = i;
                     25
@@ -70,31 +82,29 @@ impl FromStr for HeightMap {
     }
 }
 
-impl Index<(usize, usize)> for HeightMap {
-    type Output = u8;
-
-    fn index(&self, index: (usize, usize)) -> &Self::Output {
-        &self.heights[index.0 + (self.width * index.1)]
-    }
-}
-
 impl HeightMap {
-    fn shortest_path(&self) -> usize {
+    fn shortest_path(&self, start: (usize, usize)) -> Option<usize> {
         let mut exploration_queue = VecDeque::new();
         let mut explored_positions = HashSet::new();
         let mut entry_points = HashMap::new();
 
-        explored_positions.insert(self.start);
-        exploration_queue.push_back(self.start);
+        explored_positions.insert(start);
+        exploration_queue.push_back(start);
 
         loop {
+            if exploration_queue.is_empty() {
+                return None;
+            }
+
             let position = exploration_queue.pop_front().unwrap();
 
             if position == self.end {
                 break;
             } else {
                 for neighbor in self.neighbors(position.0, position.1) {
-                    if self[neighbor] <= self[position] + 1 && !explored_positions.contains(&neighbor) {
+                    if self.height(neighbor) <= self.height(position) + 1
+                        && !explored_positions.contains(&neighbor)
+                    {
                         explored_positions.insert(neighbor);
                         exploration_queue.push_back(neighbor);
 
@@ -109,12 +119,16 @@ impl HeightMap {
         let mut steps = 0;
         let mut position = self.end;
 
-        while position != self.start {
+        while position != start {
             position = *entry_points.get(&position).unwrap();
             steps += 1;
         }
 
-        steps
+        Some(steps)
+    }
+
+    fn height(&self, position: (usize, usize)) -> u8 {
+        self.heights[position.0 + (self.width * position.1)]
     }
 
     fn neighbors(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
@@ -138,6 +152,15 @@ impl HeightMap {
 
         neighbors
     }
+
+    fn possible_starting_positions(&self) -> Vec<(usize, usize)> {
+        self.heights
+            .iter()
+            .enumerate()
+            .filter(|(_, height)| **height == 0)
+            .map(|(i, _)| (i % self.width, i / self.width))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -156,6 +179,16 @@ mod test {
     #[test]
     fn test_shortest_path() {
         let height_map = HeightMap::from_str(TEST_MAP).unwrap();
-        assert_eq!(31, height_map.shortest_path());
+        assert_eq!(31, height_map.shortest_path(height_map.start).unwrap());
+
+        assert_eq!(
+            29,
+            height_map
+                .possible_starting_positions()
+                .iter()
+                .filter_map(|start| height_map.shortest_path(*start))
+                .min()
+                .unwrap()
+        );
     }
 }
