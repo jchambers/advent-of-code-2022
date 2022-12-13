@@ -14,13 +14,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             Packet::index_sum_of_correctly_ordered_pairs(&packets)?
         );
 
+        println!("Decoder key: {}", Packet::decoder_key(&packets)?);
+
         Ok(())
     } else {
         Err("Usage: day13 INPUT_FILE_PATH".into())
     }
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq)]
 struct Packet {
     value: Value,
 }
@@ -100,8 +102,27 @@ impl Packet {
                 }
             })
     }
+
+    fn decoder_key(packets: &str) -> Result<usize, Box<dyn Error>> {
+        let mut packets: Vec<Packet> = packets
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(Packet::from_str)
+            .collect::<Result<_, _>>()?;
+
+        let divider_packets = vec![Packet::from_str("[[2]]")?, Packet::from_str("[[6]]")?];
+
+        packets.extend(divider_packets.clone());
+        packets.sort();
+
+        Ok(divider_packets
+            .iter()
+            .map(|divider_packet| packets.iter().position(|p| p == divider_packet).unwrap() + 1)
+            .product())
+    }
 }
 
+#[derive(Clone)]
 enum Value {
     Integer(u8),
     List(Vec<Value>),
@@ -302,5 +323,10 @@ mod test {
             13,
             Packet::index_sum_of_correctly_ordered_pairs(TEST_PACKETS).unwrap()
         );
+    }
+
+    #[test]
+    fn test_decoder_key() {
+        assert_eq!(140, Packet::decoder_key(TEST_PACKETS).unwrap());
     }
 }
