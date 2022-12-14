@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs;
@@ -13,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!(
             "Grains of sand at rest: {}",
             cave.cells
-                .iter()
+                .values()
                 .filter(|cell| matches!(cell, Cell::Sand))
                 .count()
         );
@@ -25,9 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 struct SandCave {
-    cells: Vec<Cell>,
-
-    x_bounds: (usize, usize),
+    cells: HashMap<(usize, usize), Cell>,
     y_max: usize,
 }
 
@@ -41,24 +40,16 @@ impl FromStr for SandCave {
             .map(RockPath::from_str)
             .collect::<Result<_, _>>()?;
 
-        let bounds = paths
+        let y_max = paths
             .iter()
             .flat_map(|path| &path.vertices)
-            .fold(((usize::MAX, usize::MIN), usize::MIN), |bounds, (x, y)| {
-                ((bounds.0 .0.min(*x), bounds.0 .1.max(*x)), bounds.1.max(*y))
-            });
-
-        // +1 for the inclusive range, then +2 for one cell of padding for sand to fall at either
-        // end
-        let width = bounds.0 .0.abs_diff(bounds.0 .1) + 3;
-        let height = bounds.1 + 1;
+            .map(|vertex| vertex.1)
+            .max()
+            .expect("Rock paths must not be empty");
 
         let mut cave = SandCave {
-            cells: vec![Cell::Empty; width * height],
-
-            // Add padding for sand to fall at either end
-            x_bounds: (bounds.0 .0 - 1, bounds.0 .1 + 1),
-            y_max: bounds.1,
+            cells: HashMap::new(),
+            y_max,
         };
 
         paths.iter().try_for_each(|path| cave.add_rock_path(path))?;
@@ -69,30 +60,31 @@ impl FromStr for SandCave {
 
 impl Display for SandCave {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let width = self.x_bounds.1 - self.x_bounds.0 + 1;
+        let (x_min, x_max) = self
+            .cells
+            .keys()
+            .map(|(x, _)| *x)
+            .fold((usize::MAX, usize::MIN), |bounds, x| {
+                (bounds.0.min(x), bounds.1.max(x))
+            });
 
-        self.cells
-            .chunks_exact(width)
-            .map(|row| {
-                row.iter()
-                    .map(|cell| match cell {
-                        Cell::Empty => '.',
-                        Cell::Rock => '#',
-                        Cell::Sand => 'o',
-                    })
-                    .collect::<String>()
-            })
-            .try_for_each(|line| writeln!(f, "{}", line))?;
+        for y in 0..=self.y_max {
+            let row: String = (x_min..=x_max)
+                .map(|x| match self.cells.get(&(x, y)) {
+                    Some(Cell::Rock) => '#',
+                    Some(Cell::Sand) => 'o',
+                    _ => '.',
+                })
+                .collect();
+
+            writeln!(f, "{}", row)?;
+        }
 
         Ok(())
     }
 }
 
 impl SandCave {
-    fn index(&self, x: usize, y: usize) -> usize {
-        (x - self.x_bounds.0) + ((self.x_bounds.1 - self.x_bounds.0 + 1) * y)
-    }
-
     fn add_rock_path(&mut self, path: &RockPath) -> Result<(), Box<dyn Error>> {
         for i in 0..path.vertices.len() - 1 {
             if path.vertices[i].0 != path.vertices[i + 1].0
@@ -107,8 +99,7 @@ impl SandCave {
                 for y in path.vertices[i].1.min(path.vertices[i + 1].1)
                     ..=path.vertices[i].1.max(path.vertices[i + 1].1)
                 {
-                    let index = self.index(x, y);
-                    self.cells[index] = Cell::Rock;
+                    self.cells.insert((x, y), Cell::Rock);
                 }
             }
         }
@@ -125,26 +116,28 @@ impl SandCave {
         let mut y = 0;
 
         loop {
-            if y == self.y_max {
+            if y >= self.y_max {
                 // We've fallen off the bottom
                 break Err(());
             }
 
-            if let Some(updated_x) =
-                match &self.cells[self.index(x - 1, y + 1)..=self.index(x + 1, y + 1)] {
-                    [_, Cell::Empty, _] => Some(x),
-                    [Cell::Empty, _, _] => Some(x - 1),
-                    [_, _, Cell::Empty] => Some(x + 1),
-                    _ => None,
-                }
-            {
+            let candidates = [
+                self.cells.get(&(x - 1, y + 1)),
+                self.cells.get(&(x, y + 1)),
+                self.cells.get(&(x + 1, y + 1)),
+            ];
+
+            if let Some(updated_x) = match &candidates {
+                [_, None, _] => Some(x),
+                [None, _, _] => Some(x - 1),
+                [_, _, None] => Some(x + 1),
+                _ => None,
+            } {
                 x = updated_x;
                 y += 1;
             } else {
                 // The grain of sand has nowhere left to go and is settled
-                let index = self.index(x, y);
-                self.cells[index] = Cell::Sand;
-
+                self.cells.insert((x, y), Cell::Sand);
                 break Ok((x, y));
             }
         }
@@ -153,7 +146,6 @@ impl SandCave {
 
 #[derive(Copy, Clone)]
 enum Cell {
-    Empty,
     Rock,
     Sand,
 }
@@ -199,21 +191,21 @@ mod test {
     fn test_add_grain_of_sand() {
         let mut cave = SandCave::from_str(TEST_PATHS).unwrap();
 
-        assert!(matches!(cave.cells[cave.index(500, 8)], Cell::Empty));
+        assert!(matches!(cave.cells.get(&(500, 8)), None));
         cave.add_grain_of_sand().unwrap();
-        assert!(matches!(cave.cells[cave.index(500, 8)], Cell::Sand));
+        assert!(matches!(cave.cells.get(&(500, 8)), Some(Cell::Sand)));
 
-        assert!(matches!(cave.cells[cave.index(499, 8)], Cell::Empty));
+        assert!(matches!(cave.cells.get(&(499, 8)), None));
         cave.add_grain_of_sand().unwrap();
-        assert!(matches!(cave.cells[cave.index(499, 8)], Cell::Sand));
+        assert!(matches!(cave.cells.get(&(499, 8)), Some(Cell::Sand)));
 
-        assert!(matches!(cave.cells[cave.index(501, 8)], Cell::Empty));
+        assert!(matches!(cave.cells.get(&(501, 8)), None));
         cave.add_grain_of_sand().unwrap();
-        assert!(matches!(cave.cells[cave.index(501, 8)], Cell::Sand));
+        assert!(matches!(cave.cells.get(&(501, 8)), Some(Cell::Sand)));
 
-        assert!(matches!(cave.cells[cave.index(500, 7)], Cell::Empty));
+        assert!(matches!(cave.cells.get(&(500, 7)), None));
         cave.add_grain_of_sand().unwrap();
-        assert!(matches!(cave.cells[cave.index(500, 7)], Cell::Sand));
+        assert!(matches!(cave.cells.get(&(500, 7)), Some(Cell::Sand)));
     }
 
     #[test]
@@ -224,7 +216,7 @@ mod test {
         assert_eq!(
             24,
             cave.cells
-                .iter()
+                .values()
                 .filter(|cell| matches!(cell, Cell::Sand))
                 .count()
         );
