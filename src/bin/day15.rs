@@ -24,6 +24,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             sensor_array.positions_without_beacon(2_000_000)
         );
 
+        println!(
+            "Tuning frequency with x/y <= 4,000,000: {}",
+            sensor_array.tuning_frequency(4_000_000).unwrap()
+        );
+
         Ok(())
     } else {
         Err("Usage: day15 INPUT_FILE_PATH".into())
@@ -42,7 +47,7 @@ impl SensorArray {
             .collect()
     }
 
-    fn positions_without_beacon(&self, y: i32) -> u32 {
+    fn covered_ranges(&self, y: i32) -> Vec<Range> {
         let mut ranges: Vec<Range> = self
             .sensors
             .iter()
@@ -65,12 +70,64 @@ impl SensorArray {
             }
         }
 
-        merged_ranges.iter().map(|range| range.span()).sum::<u32>()
+        merged_ranges
+    }
+
+    fn positions_without_beacon(&self, y: i32) -> u32 {
+        self.covered_ranges(y)
+            .iter()
+            .map(|range| range.span())
+            .sum::<u32>()
             - self
                 .beacon_positions()
                 .iter()
                 .filter(|(_, beacon_y)| *beacon_y == y)
                 .count() as u32
+    }
+
+    fn tuning_frequency(&self, max_coordinate: i32) -> Option<u64> {
+        let bounds = Range::new(0, max_coordinate);
+
+        for y in 0..=max_coordinate {
+            let covered_ranges = self.covered_ranges(y);
+
+            let scanned_spaces: u32 = covered_ranges
+                .iter()
+                .filter_map(|range| {
+                    range
+                        .intersection(&bounds)
+                        .map(|intersection| intersection.span())
+                })
+                .sum();
+
+            // A more verbose way to write this would be:
+            //
+            // ```
+            // let desired_positions_without_beacon = Range::new(0, max_coordinate).span() - 1;
+            // ```
+            //
+            // …but that works out to just be `max_coordinate` in practice.
+            if scanned_spaces == max_coordinate as u32 {
+                let x = if covered_ranges[0].start == 1 {
+                    // Literal edge case; the only uncovered spot is at x = 0
+                    0
+                } else if covered_ranges[covered_ranges.len() - 1].end == max_coordinate - 1 {
+                    // Edge case on the far end; the only uncovered spot is at the very end of the
+                    // row
+                    max_coordinate - 1
+                } else {
+                    covered_ranges
+                        .windows(2)
+                        .find(|pair| pair[1].start == pair[0].end + 2)
+                        .map(|pair| pair[0].end + 1)
+                        .expect("Should have two intervals with a one-space gap")
+                };
+
+                return Some((x as u64 * 4000000) + y as u64);
+            }
+        }
+
+        None
     }
 }
 
@@ -154,6 +211,17 @@ impl Range {
             None
         }
     }
+
+    fn intersection(&self, other: &Self) -> Option<Self> {
+        if other.end >= self.start && other.start <= self.end {
+            Some(Range::new(
+                self.start.max(other.start),
+                self.end.min(other.end),
+            ))
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -215,5 +283,18 @@ mod test {
         let sensor_array = SensorArray { sensors };
 
         assert_eq!(26, sensor_array.positions_without_beacon(10));
+    }
+
+    #[test]
+    fn test_tuning_frequency() {
+        let sensors: Vec<Sensor> = TEST_SENSORS
+            .lines()
+            .map(Sensor::from_str)
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        let sensor_array = SensorArray { sensors };
+
+        assert_eq!(Some(56000011), sensor_array.tuning_frequency(20));
     }
 }
