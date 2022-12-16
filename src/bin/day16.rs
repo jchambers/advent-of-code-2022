@@ -87,9 +87,12 @@ impl Volcano {
 
         let mut exploration_stack = vec![ExplorationAction::Backtrack];
 
-        unopened_valves.iter().for_each(|unopened_valve| {
-            exploration_stack.push(ExplorationAction::Explore(unopened_valve.clone()))
-        });
+        unopened_valves
+            .iter()
+            .filter(|valve| self.can_open_valve(START, valve, 0, time_limit))
+            .for_each(|unopened_valve| {
+                exploration_stack.push(ExplorationAction::Explore(unopened_valve.clone()))
+            });
 
         let mut path: Vec<(u32, String)> = vec![];
         let mut max_pressure_released = 0;
@@ -97,32 +100,36 @@ impl Volcano {
         while !exploration_stack.is_empty() {
             match exploration_stack.pop().unwrap() {
                 ExplorationAction::Explore(valve) => {
-                    let current_time = path.last().map(|(time, _)| *time).unwrap_or(0);
                     let previous_valve = path
                         .last()
                         .map_or_else(|| START, |(_, previous_valve)| previous_valve);
 
+                    let previous_time = path.last().map(|(time, _)| *time).unwrap_or(0);
                     let travel_time = self.travel_cost(previous_valve, &valve);
+                    let current_time = previous_time + travel_time + 1;
 
-                    // Do we have enough time to reach and open the destination valve? We need a
-                    // minute to open the valve, but if we finish opening it at the last instant,
-                    // then it won't actually vent any pressure.
-                    if self.can_open_valve(previous_valve, &valve, current_time, time_limit) {
-                        path.push((current_time + travel_time + 1, valve.clone()));
-                        unopened_valves.remove(valve.as_str());
+                    path.push((current_time, valve.clone()));
+                    unopened_valves.remove(valve.as_str());
 
-                        exploration_stack.push(ExplorationAction::Backtrack);
+                    let reachable_valves: Vec<&String> = unopened_valves
+                        .iter()
+                        .filter(|candidate| self.can_open_valve(&valve, candidate, current_time, time_limit))
+                        .collect();
 
-                        unopened_valves.iter().for_each(|unopened_valve| {
-                            exploration_stack
-                                .push(ExplorationAction::Explore(unopened_valve.clone()))
-                        });
+                    exploration_stack.push(ExplorationAction::Backtrack);
+
+                    if reachable_valves.is_empty() {
+                        // We've reached the end of the line
+                        max_pressure_released = max_pressure_released
+                            .max(self.pressure_released(path.as_slice(), time_limit));
+                    } else {
+                        reachable_valves
+                            .iter()
+                            .for_each(|&reachable_valve| exploration_stack
+                                .push(ExplorationAction::Explore(reachable_valve.clone())));
                     }
                 }
                 ExplorationAction::Backtrack => {
-                    max_pressure_released = max_pressure_released
-                        .max(self.pressure_released(path.as_slice(), time_limit));
-
                     path.pop()
                         .map(|(_, popped_valve)| unopened_valves.insert(popped_valve));
                 }
