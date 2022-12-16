@@ -26,8 +26,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Volcano {
     flow_rates: HashMap<String, u32>,
-    connections: HashMap<String, Vec<String>>,
-
     travel_times: HashMap<(String, String), u32>,
 }
 
@@ -61,10 +59,66 @@ impl FromStr for Volcano {
             }
         }
 
+        // Precalculate travel times
+        let valves = {
+            let mut valves: Vec<String> = flow_rates
+                .iter()
+                .filter_map(|(valve, flow_rate)| if *flow_rate > 0 {
+                    Some(valve.clone())
+                } else {
+                    None
+                })
+                .collect();
+
+            if !valves.contains(&&"AA".to_string()) {
+                valves.push("AA".to_string());
+            }
+
+            valves
+        };
+
+        let mut travel_times = HashMap::new();
+
+        for a in 0..valves.len() - 1 {
+            for b in a + 1..valves.len() {
+                let mut tentative_distances = HashMap::from([(valves[a].to_string(), 0)]);
+                let mut visited_valves: HashSet<String> = HashSet::new();
+
+                while !visited_valves.contains(&valves[b]) {
+                    let (valve, distance) = tentative_distances
+                        .iter()
+                        .filter(|(valve, _)| !visited_valves.contains(*valve))
+                        .min_by_key(|(_, distance)| *distance)
+                        .unwrap();
+
+                    let valve = valve.clone();
+                    let distance = *distance;
+
+                    for neighbor in connections
+                        .get(&valve)
+                        .expect("Valve should have neighbors")
+                    {
+                        let neighbor_distance = tentative_distances
+                            .entry(neighbor.clone())
+                            .or_insert(u32::MAX);
+
+                        *neighbor_distance = (*neighbor_distance).min(distance + 1);
+                    }
+
+                    visited_valves.insert(valve.clone());
+                }
+
+
+                let distance = *tentative_distances.get(&valves[b]).unwrap();
+
+                travel_times.insert((valves[a].clone(), valves[b].clone()), distance);
+                travel_times.insert((valves[b].clone(), valves[a].clone()), distance);
+            }
+        }
+
         Ok(Volcano {
             flow_rates,
-            connections,
-            travel_times: HashMap::new(),
+            travel_times,
         })
     }
 }
@@ -144,39 +198,11 @@ impl Volcano {
     }
 
     fn travel_cost(&mut self, start: &str, end: &str) -> u32 {
-        *self.travel_times
-            .entry((start.to_string(), end.to_string()))
-            .or_insert_with(|| {
-                let mut tentative_distances = HashMap::from([(start.to_string(), 0)]);
-                let mut visited_valves: HashSet<String> = HashSet::new();
-
-                while !visited_valves.contains(end) {
-                    let (valve, distance) = tentative_distances
-                        .iter()
-                        .filter(|(valve, _)| !visited_valves.contains(*valve))
-                        .min_by_key(|(_, distance)| *distance)
-                        .unwrap();
-
-                    let valve = valve.clone();
-                    let distance = *distance;
-
-                    for neighbor in self
-                        .connections
-                        .get(&valve)
-                        .expect("Valve should have neighbors")
-                    {
-                        let neighbor_distance = tentative_distances
-                            .entry(neighbor.clone())
-                            .or_insert(u32::MAX);
-
-                        *neighbor_distance = (*neighbor_distance).min(distance + 1);
-                    }
-
-                    visited_valves.insert(valve.clone());
-                }
-
-                *tentative_distances.get(end).unwrap()
-            })
+        if start == end {
+            0
+        } else {
+            *self.travel_times.get(&(start.to_string(), end.to_string())).unwrap()
+        }
     }
 
     fn pressure_released(&self, sequence: &[(u32, String)], time_limit: u32) -> u32 {
@@ -212,18 +238,6 @@ mod test {
         Valve II has flow rate=0; tunnels lead to valves AA, JJ
         Valve JJ has flow rate=21; tunnel leads to valve II
     "};
-
-    #[test]
-    fn test_volcano_from_string() {
-        let volcano = Volcano::from_str(TEST_VALVES).unwrap();
-
-        assert_eq!(Some(0), volcano.flow_rates.get("AA").cloned());
-
-        assert_eq!(
-            Some(vec!["DD".to_string(), "II".to_string(), "BB".to_string()]),
-            volcano.connections.get("AA").cloned()
-        );
-    }
 
     #[test]
     fn test_travel_cost() {
