@@ -161,34 +161,49 @@ impl Volcano {
         while !exploration_stack.is_empty() {
             match exploration_stack.pop().unwrap() {
                 ExplorationAction::Explore(actor, valve) => {
-                    let mut actor_states: Vec<(u32, String)> = (0..actors)
-                        .map(|x| path
+                    let mut actor_states: Vec<(u32, u32, String)> = (0..actors)
+                        .map(|actor| path
                             .iter()
-                            .filter(|(a, _, _)| a == &x)
+                            .filter(|(a, _, _)| a == &actor)
                             .last()
-                            .map(|(_, time, valve)| (*time, valve.clone()))
-                            .unwrap_or_else(|| (0, START.to_string())))
+                            .map(|(a, time, valve)| (*a, *time, valve.clone()))
+                            .unwrap_or_else(|| (actor, 0, START.to_string())))
                         .collect();
 
-                    let (previous_time, previous_valve) = &actor_states[actor as usize];
+                    let (_, previous_time, previous_valve) = &actor_states[actor as usize];
                     let travel_time = self.travel_cost(previous_valve, &valve);
                     let current_time = previous_time + travel_time + 1;
 
                     path.push((actor, current_time, valve.clone()));
                     unopened_valves.remove(valve.as_str());
 
-                    actor_states[actor as usize] = (current_time, valve);
+                    actor_states[actor as usize] = (actor, current_time, valve);
 
-                    let mut next_actions = vec![];
+                    // Whichever actor is the farthest "back in time" should move next to catch up
+                    // to the present
+                    let mut last_action_times = vec![0; actors as usize];
 
-                    for a in 0..actors {
-                        let (time, valve) = &actor_states[a as usize];
+                    actor_states.iter()
+                        .for_each(|(actor, time, _)| {
+                            last_action_times[*actor as usize] = *time;
+                        });
+
+                    let next_actor = last_action_times
+                        .iter()
+                        .enumerate()
+                        .min_by_key(|(_, time)| *time)
+                        .map(|(actor, _)| actor)
+                        .unwrap();
+
+                    let mut next_actions: Vec<ExplorationAction> = {
+                        let (_, time, valve) = &actor_states[next_actor];
 
                         unopened_valves
                             .iter()
                             .filter(|candidate| self.can_open_valve(&valve, candidate, *time, time_limit))
-                            .for_each(|candidate| next_actions.push(ExplorationAction::Explore(a, candidate.clone())));
-                    }
+                            .map(|candidate| ExplorationAction::Explore(next_actor as u32, candidate.clone()))
+                            .collect()
+                    };
 
                     exploration_stack.push(ExplorationAction::Backtrack);
 
