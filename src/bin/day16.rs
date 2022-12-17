@@ -14,8 +14,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut volcano = Volcano::from_str(fs::read_to_string(path)?.as_str())?;
 
         println!(
-            "Maximum pressure released over 30 minutes: {}",
-            volcano.maximum_pressure_release(30)
+            "Maximum pressure released over 30 minutes with 1 actor: {}",
+            volcano.maximum_pressure_release(1, 30)
+        );
+
+        println!(
+            "Maximum pressure released over 26 minutes with 2 actors: {}",
+            volcano.maximum_pressure_release(2, 26)
         );
 
         Ok(())
@@ -70,7 +75,7 @@ impl FromStr for Volcano {
                 })
                 .collect();
 
-            if !valves.contains(&&"AA".to_string()) {
+            if !valves.contains(&"AA".to_string()) {
                 valves.push("AA".to_string());
             }
 
@@ -124,7 +129,7 @@ impl FromStr for Volcano {
 }
 
 impl Volcano {
-    fn maximum_pressure_release(&mut self, time_limit: u32) -> u32 {
+    fn maximum_pressure_release(&mut self, actors: u32, time_limit: u32) -> u32 {
         const START: &str = "AA";
 
         let mut unopened_valves: HashSet<String> = self
@@ -145,47 +150,59 @@ impl Volcano {
             .iter()
             .filter(|valve| self.can_open_valve(START, valve, 0, time_limit))
             .for_each(|unopened_valve| {
-                exploration_stack.push(ExplorationAction::Explore(unopened_valve.clone()))
+                for actor in 0..actors {
+                    exploration_stack.push(ExplorationAction::Explore(actor, unopened_valve.clone()));
+                }
             });
 
-        let mut path: Vec<(u32, String)> = vec![];
+        let mut path: Vec<(u32, u32, String)> = vec![];
         let mut max_pressure_released = 0;
 
         while !exploration_stack.is_empty() {
             match exploration_stack.pop().unwrap() {
-                ExplorationAction::Explore(valve) => {
-                    let previous_valve = path
-                        .last()
-                        .map_or_else(|| START, |(_, previous_valve)| previous_valve);
+                ExplorationAction::Explore(actor, valve) => {
+                    let mut actor_states: Vec<(u32, String)> = (0..actors)
+                        .map(|x| path
+                            .iter()
+                            .filter(|(a, _, _)| a == &x)
+                            .last()
+                            .map(|(_, time, valve)| (*time, valve.clone()))
+                            .unwrap_or_else(|| (0, START.to_string())))
+                        .collect();
 
-                    let previous_time = path.last().map(|(time, _)| *time).unwrap_or(0);
+                    let (previous_time, previous_valve) = &actor_states[actor as usize];
                     let travel_time = self.travel_cost(previous_valve, &valve);
                     let current_time = previous_time + travel_time + 1;
 
-                    path.push((current_time, valve.clone()));
+                    path.push((actor, current_time, valve.clone()));
                     unopened_valves.remove(valve.as_str());
 
-                    let reachable_valves: Vec<&String> = unopened_valves
-                        .iter()
-                        .filter(|candidate| self.can_open_valve(&valve, candidate, current_time, time_limit))
-                        .collect();
+                    actor_states[actor as usize] = (current_time, valve);
+
+                    let mut next_actions = vec![];
+
+                    for a in 0..actors {
+                        let (time, valve) = &actor_states[a as usize];
+
+                        unopened_valves
+                            .iter()
+                            .filter(|candidate| self.can_open_valve(&valve, candidate, *time, time_limit))
+                            .for_each(|candidate| next_actions.push(ExplorationAction::Explore(a, candidate.clone())));
+                    }
 
                     exploration_stack.push(ExplorationAction::Backtrack);
 
-                    if reachable_valves.is_empty() {
+                    if next_actions.is_empty() {
                         // We've reached the end of the line
                         max_pressure_released = max_pressure_released
                             .max(self.pressure_released(path.as_slice(), time_limit));
                     } else {
-                        reachable_valves
-                            .iter()
-                            .for_each(|&reachable_valve| exploration_stack
-                                .push(ExplorationAction::Explore(reachable_valve.clone())));
+                        exploration_stack.append(&mut next_actions);
                     }
                 }
                 ExplorationAction::Backtrack => {
                     path.pop()
-                        .map(|(_, popped_valve)| unopened_valves.insert(popped_valve));
+                        .map(|(_, _, popped_valve)| unopened_valves.insert(popped_valve));
                 }
             }
         }
@@ -205,10 +222,10 @@ impl Volcano {
         }
     }
 
-    fn pressure_released(&self, sequence: &[(u32, String)], time_limit: u32) -> u32 {
+    fn pressure_released(&self, sequence: &[(u32, u32, String)], time_limit: u32) -> u32 {
         sequence
             .iter()
-            .map(|(time, valve)| {
+            .map(|(_, time, valve)| {
                 self.flow_rates.get(valve).expect("Valve should be present") * (time_limit - time)
             })
             .sum()
@@ -217,7 +234,7 @@ impl Volcano {
 
 #[derive(Debug)]
 enum ExplorationAction {
-    Explore(String),
+    Explore(u32, String),
     Backtrack,
 }
 
@@ -252,7 +269,8 @@ mod test {
     fn test_maximum_pressure_release() {
         let mut volcano = Volcano::from_str(TEST_VALVES).unwrap();
 
-        assert_eq!(1651, volcano.maximum_pressure_release(30));
+        assert_eq!(1651, volcano.maximum_pressure_release(1, 30));
+        assert_eq!(1707, volcano.maximum_pressure_release(2, 26));
     }
 
     #[test]
@@ -263,12 +281,12 @@ mod test {
             1651,
             volcano.pressure_released(
                 vec![
-                    (2, "DD".to_string()),
-                    (5, "BB".to_string()),
-                    (9, "JJ".to_string()),
-                    (17, "HH".to_string()),
-                    (21, "EE".to_string()),
-                    (24, "CC".to_string()),
+                    (0, 2, "DD".to_string()),
+                    (0, 5, "BB".to_string()),
+                    (0, 9, "JJ".to_string()),
+                    (0, 17, "HH".to_string()),
+                    (0, 21, "EE".to_string()),
+                    (0, 24, "CC".to_string()),
                 ]
                 .as_slice(),
                 30
