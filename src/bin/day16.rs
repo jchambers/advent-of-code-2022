@@ -1,5 +1,6 @@
 extern crate core;
 
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -68,10 +69,12 @@ impl FromStr for Volcano {
         let valves = {
             let mut valves: Vec<String> = flow_rates
                 .iter()
-                .filter_map(|(valve, flow_rate)| if *flow_rate > 0 {
-                    Some(valve.clone())
-                } else {
-                    None
+                .filter_map(|(valve, flow_rate)| {
+                    if *flow_rate > 0 {
+                        Some(valve.clone())
+                    } else {
+                        None
+                    }
                 })
                 .collect();
 
@@ -113,7 +116,6 @@ impl FromStr for Volcano {
                     visited_valves.insert(valve.clone());
                 }
 
-
                 let distance = *tentative_distances.get(&valves[b]).unwrap();
 
                 travel_times.insert((valves[a].clone(), valves[b].clone()), distance);
@@ -151,7 +153,8 @@ impl Volcano {
             .filter(|valve| self.can_open_valve(START, valve, 0, time_limit))
             .for_each(|unopened_valve| {
                 for actor in 0..actors {
-                    exploration_stack.push(ExplorationAction::Explore(actor, unopened_valve.clone()));
+                    exploration_stack
+                        .push(ExplorationAction::Explore(actor, unopened_valve.clone()));
                 }
             });
 
@@ -162,12 +165,13 @@ impl Volcano {
             match exploration_stack.pop().unwrap() {
                 ExplorationAction::Explore(actor, valve) => {
                     let mut actor_states: Vec<(u32, u32, String)> = (0..actors)
-                        .map(|actor| path
-                            .iter()
-                            .filter(|(a, _, _)| a == &actor)
-                            .last()
-                            .map(|(a, time, valve)| (*a, *time, valve.clone()))
-                            .unwrap_or_else(|| (actor, 0, START.to_string())))
+                        .map(|actor| {
+                            path.iter()
+                                .filter(|(a, _, _)| a == &actor)
+                                .last()
+                                .map(|(a, time, valve)| (*a, *time, valve.clone()))
+                                .unwrap_or_else(|| (actor, 0, START.to_string()))
+                        })
                         .collect();
 
                     let (_, previous_time, previous_valve) = &actor_states[actor as usize];
@@ -181,29 +185,44 @@ impl Volcano {
 
                     // Whichever actor is the farthest "back in time" should move next to catch up
                     // to the present
-                    let mut last_action_times = vec![0; actors as usize];
+                    let actor_queue: Vec<usize> = {
+                        let mut last_action_times = vec![0; actors as usize];
 
-                    actor_states.iter()
-                        .for_each(|(actor, time, _)| {
+                        actor_states.iter().for_each(|(actor, time, _)| {
                             last_action_times[*actor as usize] = *time;
                         });
 
-                    let next_actor = last_action_times
-                        .iter()
-                        .enumerate()
-                        .min_by_key(|(_, time)| *time)
-                        .map(|(actor, _)| actor)
-                        .unwrap();
-
-                    let mut next_actions: Vec<ExplorationAction> = {
-                        let (_, time, valve) = &actor_states[next_actor];
-
-                        unopened_valves
+                        last_action_times
                             .iter()
-                            .filter(|candidate| self.can_open_valve(&valve, candidate, *time, time_limit))
-                            .map(|candidate| ExplorationAction::Explore(next_actor as u32, candidate.clone()))
+                            .enumerate()
+                            .sorted_by_key(|(_, time)| *time)
+                            .map(|(actor, _)| actor)
                             .collect()
                     };
+
+                    let mut next_actions = vec![];
+
+                    for actor in actor_queue {
+                        next_actions = {
+                            let (_, time, valve) = &actor_states[actor];
+
+                            unopened_valves
+                                .iter()
+                                .filter(|candidate| {
+                                    self.can_open_valve(&valve, candidate, *time, time_limit)
+                                })
+                                .map(|candidate| {
+                                    ExplorationAction::Explore(actor as u32, candidate.clone())
+                                })
+                                .collect()
+                        };
+
+                        // The laggiest actor may not have any valid moves; a more recent actor may
+                        // still be able to move, so continue looping if we don't find any actions.
+                        if !next_actions.is_empty() {
+                            break;
+                        }
+                    }
 
                     exploration_stack.push(ExplorationAction::Backtrack);
 
@@ -225,7 +244,13 @@ impl Volcano {
         max_pressure_released
     }
 
-    fn can_open_valve(&mut self, start: &str, valve: &str, current_time: u32, time_limit: u32) -> bool {
+    fn can_open_valve(
+        &mut self,
+        start: &str,
+        valve: &str,
+        current_time: u32,
+        time_limit: u32,
+    ) -> bool {
         current_time + self.travel_cost(start, valve) <= time_limit - 2
     }
 
@@ -233,7 +258,10 @@ impl Volcano {
         if start == end {
             0
         } else {
-            *self.travel_times.get(&(start.to_string(), end.to_string())).unwrap()
+            *self
+                .travel_times
+                .get(&(start.to_string(), end.to_string()))
+                .unwrap()
         }
     }
 
