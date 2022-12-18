@@ -3,6 +3,8 @@ use std::fmt::{Display, Formatter};
 use std::fs;
 use std::str::FromStr;
 
+const CAVE_WIDTH: usize = 7;
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
@@ -26,7 +28,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Cave {
     spaces: Vec<Space>,
-    width: usize,
 
     rocks: [Rock; 5],
     next_rock: usize,
@@ -49,7 +50,6 @@ impl FromStr for Cave {
 
         Ok(Cave {
             spaces: vec![],
-            width: 7,
 
             rocks: [
                 Rock::h_bar(),
@@ -69,7 +69,7 @@ impl FromStr for Cave {
 impl Display for Cave {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.spaces
-            .chunks_exact(self.width)
+            .chunks_exact(CAVE_WIDTH)
             .rev()
             .try_for_each(|row| {
                 let row_string: String = row
@@ -97,7 +97,7 @@ impl Cave {
         // Do we need to add rows to the cave?
         if self.cave_height() < position.1 + rock.height() {
             let additional_rows = position.1 + rock.height() - self.cave_height();
-            self.spaces.append(&mut vec![Space::Empty; additional_rows * self.width]);
+            self.spaces.append(&mut vec![Space::Empty; additional_rows * CAVE_WIDTH]);
         }
 
         loop {
@@ -106,7 +106,7 @@ impl Cave {
 
             let blocked_by_cave_wall = match jet {
                 Jet::Left => position.0 == 0,
-                Jet::Right => position.0 + rock.width() == self.width,
+                Jet::Right => position.0 + rock.width() == CAVE_WIDTH,
             };
 
             position = if !blocked_by_cave_wall {
@@ -143,7 +143,7 @@ impl Cave {
     }
 
     fn cave_height(&self) -> usize {
-        self.spaces.len() / self.width
+        self.spaces.len() / CAVE_WIDTH
     }
 
     fn tower_height(&self) -> usize {
@@ -151,7 +151,7 @@ impl Cave {
             0
         } else {
             self.spaces
-                .chunks_exact(self.width)
+                .chunks_exact(CAVE_WIDTH)
                 .enumerate()
                 .rev()
                 .find(|(_, row)| row.iter().any(|space| matches!(space, Space::Rock)))
@@ -164,14 +164,14 @@ impl Cave {
         rock.filled_spaces
             .iter()
             .map(|(x, y)| (x + position.0, y + position.1))
-            .any(|(x, y)| matches!(self.spaces[(y * self.width) + x], Space::Rock))
+            .any(|(x, y)| matches!(self.spaces[(y * CAVE_WIDTH) + x], Space::Rock))
     }
 
     fn fill_with_rock(&mut self, rock: &Rock, position: (usize, usize)) {
         rock.filled_spaces
             .iter()
             .map(|(x, y)| (x + position.0, y + position.1))
-            .for_each(|(x, y)| self.spaces[(y * self.width) + x] = Space::Rock);
+            .for_each(|(x, y)| self.spaces[(y * CAVE_WIDTH) + x] = Space::Rock);
     }
 }
 
