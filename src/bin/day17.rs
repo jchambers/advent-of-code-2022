@@ -112,17 +112,14 @@ impl Cave {
             if self.rocks_added as usize > self.rocks.len() && tower_height >= 2 * MIN_CYCLE_HEIGHT
             {
                 for potential_cycle_height in MIN_CYCLE_HEIGHT..=tower_height / 2 {
-                    let top_stop_exclusive = tower_height * CAVE_WIDTH;
-                    let midpoint = top_stop_exclusive - (potential_cycle_height * CAVE_WIDTH);
-                    let bottom_start_inclusive =
-                        top_stop_exclusive - (2 * potential_cycle_height * CAVE_WIDTH);
+                    let top = tower_height * CAVE_WIDTH;
+                    let midpoint = top - (potential_cycle_height * CAVE_WIDTH);
+                    let bottom = top - (2 * potential_cycle_height * CAVE_WIDTH);
 
-                    if self.spaces[midpoint..top_stop_exclusive]
-                        == self.spaces[bottom_start_inclusive..midpoint]
-                    {
+                    if self.spaces[midpoint..top] == self.spaces[bottom..midpoint] {
                         // We've found a cycle! We know how tall it is, but not how many rocks went
                         // into it.
-                        break 'find_cycle (midpoint, top_stop_exclusive);
+                        break 'find_cycle (midpoint, top);
                     }
                 }
             }
