@@ -9,16 +9,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(path) = args.get(1) {
-        let mut cave = Cave::from_str(fs::read_to_string(path)?.as_str())?;
+        for rocks in [2022, 1_000_000_000_000u64] {
+            let cave = Cave::from_str(fs::read_to_string(path)?.as_str())?;
 
-        for _ in 0..2022 {
-            cave.add_rock();
+            println!(
+                "Tower height after adding {} rocks: {}",
+                rocks,
+                cave.tower_height(rocks)
+            );
         }
-
-        println!(
-            "Tower height after adding 2022 rocks: {}",
-            cave.tower_height()
-        );
 
         Ok(())
     } else {
@@ -28,6 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Cave {
     spaces: Vec<Space>,
+    rocks_added: usize,
 
     rocks: [Rock; 5],
     next_rock: usize,
@@ -40,7 +40,8 @@ impl FromStr for Cave {
     type Err = Box<dyn Error>;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let jet_pattern = string.chars()
+        let jet_pattern = string
+            .chars()
             .map(|c| match c {
                 '<' => Ok(Jet::Left),
                 '>' => Ok(Jet::Right),
@@ -50,6 +51,7 @@ impl FromStr for Cave {
 
         Ok(Cave {
             spaces: vec![],
+            rocks_added: 0,
 
             rocks: [
                 Rock::h_bar(),
@@ -88,8 +90,100 @@ impl Display for Cave {
 }
 
 impl Cave {
+    fn tower_height(mut self, rocks: u64) -> u64 {
+        // Hypothesis: as we add rocks, we'll wind up with an irregular tower "base," but then
+        // eventually settle into a repeating pattern. Here, we add rocks until we find a repeating
+        // pattern, then figure out the base tower height, then figure out how long the repeating
+        // cycle is.
+
+        // We can't possibly have a cycle until (a) we've added at least one of each rock, and then
+        // that cycle can't possibly be shorter than the height of the tallest individual rock.
+        const MIN_CYCLE_HEIGHT: usize = 4;
+
+        let (cycle_start, cycle_end) = 'find_cycle: loop {
+            self.add_rock();
+
+            let tower_height = self.current_tower_height();
+
+            if self.rocks_added as u64 == rocks {
+                return tower_height as u64;
+            }
+
+            if self.rocks_added as usize > self.rocks.len() && tower_height >= 2 * MIN_CYCLE_HEIGHT
+            {
+                for potential_cycle_height in MIN_CYCLE_HEIGHT..=tower_height / 2 {
+                    let top_stop_exclusive = tower_height * CAVE_WIDTH;
+                    let midpoint = top_stop_exclusive - (potential_cycle_height * CAVE_WIDTH);
+                    let bottom_start_inclusive =
+                        top_stop_exclusive - (2 * potential_cycle_height * CAVE_WIDTH);
+
+                    if self.spaces[midpoint..top_stop_exclusive]
+                        == self.spaces[bottom_start_inclusive..midpoint]
+                    {
+                        // We've found a cycle! We know how tall it is, but not how many rocks went
+                        // into it.
+                        break 'find_cycle (midpoint, top_stop_exclusive);
+                    }
+                }
+            }
+        };
+
+        // Now we know how tall the cycle is; let's figure out how many rocks go into that cycle.
+        let rocks_added_before_repeat = self.rocks_added;
+
+        loop {
+            // The cycle can only reasonably repeat after adding a full round of rocks
+            for _ in 0..self.rocks.len() {
+                self.add_rock();
+
+                if self.rocks_added as u64 == rocks {
+                    return self.current_tower_height() as u64;
+                }
+            }
+
+            let end = self.current_tower_height() * CAVE_WIDTH;
+            let start = end - (cycle_end - cycle_start);
+
+            if self.spaces[start..end] == self.spaces[cycle_start..cycle_end] {
+                // The cycle has repeated!
+                break;
+            }
+        }
+
+        let rocks_per_cycle = self.rocks_added - rocks_added_before_repeat;
+
+        // We now know enough to calculate the number of rocks per cycle, and we know we've got
+        // three full cycles plus the initial bottom tower. That tells us how many rocks are in the
+        // base tower and how tall the base tower is.
+        let rocks_in_base_tower = self.rocks_added - (3 * rocks_per_cycle);
+        let base_tower_height =
+            self.current_tower_height() - (3 * (cycle_end - cycle_start) / CAVE_WIDTH);
+
+        // This is MOST of what we need to calculate the full height of the tower. There may be a
+        // few stragglers after the last cycle boundary; we'll just add those and see how the height
+        // changes.
+        let rocks_after_last_cycle = (rocks as usize - rocks_in_base_tower) % rocks_per_cycle;
+
+        let height_from_rocks_after_last_cycle = {
+            let initial_height = self.current_tower_height();
+
+            for _ in 0..rocks_after_last_cycle {
+                self.add_rock();
+            }
+
+            self.current_tower_height() - initial_height
+        };
+
+        // And, finally, putting it all together…
+        let cycle_height = (cycle_end - cycle_start) / CAVE_WIDTH;
+        let full_cycles = (rocks as usize - rocks_in_base_tower) / rocks_per_cycle;
+
+        (base_tower_height + (full_cycles * cycle_height) + height_from_rocks_after_last_cycle)
+            as u64
+    }
+
     fn add_rock(&mut self) {
-        let mut position = (2, self.tower_height() + 3);
+        let mut position = (2, self.current_tower_height() + 3);
 
         let rock = self.rocks[self.next_rock].clone();
         self.next_rock = (self.next_rock + 1) % self.rocks.len();
@@ -97,7 +191,8 @@ impl Cave {
         // Do we need to add rows to the cave?
         if self.cave_height() < position.1 + rock.height() {
             let additional_rows = position.1 + rock.height() - self.cave_height();
-            self.spaces.append(&mut vec![Space::Empty; additional_rows * CAVE_WIDTH]);
+            self.spaces
+                .append(&mut vec![Space::Empty; additional_rows * CAVE_WIDTH]);
         }
 
         loop {
@@ -140,13 +235,15 @@ impl Cave {
                 }
             }
         }
+
+        self.rocks_added += 1;
     }
 
     fn cave_height(&self) -> usize {
         self.spaces.len() / CAVE_WIDTH
     }
 
-    fn tower_height(&self) -> usize {
+    fn current_tower_height(&self) -> usize {
         if self.spaces.is_empty() {
             0
         } else {
@@ -156,7 +253,8 @@ impl Cave {
                 .rev()
                 .find(|(_, row)| row.iter().any(|space| matches!(space, Space::Rock)))
                 .map(|(i, _)| i)
-                .expect("Non-empty rows should have at least one rock space") + 1
+                .expect("Non-empty rows should have at least one rock space")
+                + 1
         }
     }
 
@@ -181,7 +279,7 @@ enum Jet {
     Right,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 enum Space {
     Empty,
     Rock,
@@ -194,39 +292,41 @@ struct Rock {
 
 impl Rock {
     fn h_bar() -> Rock {
-        Rock { filled_spaces: vec![(0, 0), (1, 0), (2, 0), (3, 0)] }
+        Rock {
+            filled_spaces: vec![(0, 0), (1, 0), (2, 0), (3, 0)],
+        }
     }
 
     fn cross() -> Rock {
-        Rock { filled_spaces: vec![(1, 0), (0, 1), (1, 1), (2, 1), (1, 2)] }
+        Rock {
+            filled_spaces: vec![(1, 0), (0, 1), (1, 1), (2, 1), (1, 2)],
+        }
     }
 
     fn corner() -> Rock {
-        Rock { filled_spaces: vec![(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)] }
+        Rock {
+            filled_spaces: vec![(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)],
+        }
     }
 
     fn v_bar() -> Rock {
-        Rock { filled_spaces: vec![(0, 0), (0, 1), (0, 2), (0, 3)] }
+        Rock {
+            filled_spaces: vec![(0, 0), (0, 1), (0, 2), (0, 3)],
+        }
     }
 
     fn square() -> Rock {
-        Rock { filled_spaces: vec![(0, 0), (1, 0), (0, 1), (1, 1)] }
+        Rock {
+            filled_spaces: vec![(0, 0), (1, 0), (0, 1), (1, 1)],
+        }
     }
 
     fn height(&self) -> usize {
-        *self.filled_spaces
-            .iter()
-            .map(|(_, y)| y)
-            .max()
-            .unwrap() as usize + 1
+        *self.filled_spaces.iter().map(|(_, y)| y).max().unwrap() as usize + 1
     }
 
     fn width(&self) -> usize {
-        *self.filled_spaces
-            .iter()
-            .map(|(x, _)| x)
-            .max()
-            .unwrap() as usize + 1
+        *self.filled_spaces.iter().map(|(x, _)| x).max().unwrap() as usize + 1
     }
 }
 
@@ -238,12 +338,8 @@ mod test {
 
     #[test]
     fn test_tower_height() {
-        let mut cave = Cave::from_str(TEST_PATTERN).unwrap();
+        let cave = Cave::from_str(TEST_PATTERN).unwrap();
 
-        for _ in 0..2022 {
-            cave.add_rock();
-        }
-
-        assert_eq!(3068, cave.tower_height());
+        assert_eq!(3068, cave.tower_height(2022));
     }
 }
