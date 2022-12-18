@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
 use std::str::FromStr;
@@ -8,7 +9,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(path) = args.get(1) {
         let droplet = LavaDroplet::from_str(fs::read_to_string(path)?.as_str())?;
 
-        println!("Droplet surface area: {}", droplet.surface_area());
+        println!("Total surface area: {}", droplet.total_surface_area());
+        println!("External surface area: {}", droplet.external_surface_area());
 
         Ok(())
     } else {
@@ -43,7 +45,7 @@ impl FromStr for LavaDroplet {
             });
 
         let mut droplet = LavaDroplet {
-            voxels: vec![Voxel::Air; bounds.0 * bounds.1 * bounds.2],
+            voxels: vec![Voxel::ExternalAir; bounds.0 * bounds.1 * bounds.2],
             bounds,
         };
 
@@ -51,6 +53,72 @@ impl FromStr for LavaDroplet {
             let index = droplet.index(x, y, z);
             droplet.voxels[index] = Voxel::Lava;
         });
+
+        let mut unvisited_air_voxels = HashSet::new();
+
+        for x in 0..droplet.bounds.0 {
+            for y in 0..droplet.bounds.1 {
+                for z in 0..droplet.bounds.2 {
+                    if !matches!(
+                        droplet.voxel(x as isize, y as isize, z as isize),
+                        Voxel::Lava
+                    ) {
+                        unvisited_air_voxels.insert((x, y, z));
+                    }
+                }
+            }
+        }
+
+        while !unvisited_air_voxels.is_empty() {
+            let mut exploration_queue = vec![*unvisited_air_voxels.iter().next().unwrap()];
+            let mut explored_group = vec![];
+            let mut group_has_path_to_surface = false;
+
+            while !exploration_queue.is_empty() {
+                let (x, y, z) = exploration_queue.pop().unwrap();
+
+                droplet
+                    .neighbors(x, y, z)
+                    .into_iter()
+                    .filter(|(x, y, z)| {
+                        *x >= 0
+                            && *y >= 0
+                            && *z >= 0
+                            && (*x as usize) < droplet.bounds.0
+                            && (*y as usize) < droplet.bounds.1
+                            && (*z as usize) < droplet.bounds.2
+                    })
+                    .filter(|(x, y, z)| {
+                        unvisited_air_voxels.contains(&(*x as usize, *y as usize, *z as usize))
+                    })
+                    .for_each(|(x, y, z)| {
+                        exploration_queue.push((x as usize, y as usize, z as usize));
+
+                        if x == 0
+                            || y == 0
+                            || z == 0
+                            || (x as usize) == droplet.bounds.0
+                            || (y as usize) == droplet.bounds.1
+                            || (z as usize) == droplet.bounds.2
+                        {
+                            group_has_path_to_surface = true;
+                        }
+                    });
+
+                unvisited_air_voxels.remove(&(x, y, z));
+                explored_group.push((x, y, z));
+            }
+
+            explored_group.into_iter().for_each(|(x, y, z)| {
+                let index = droplet.index(x, y, z);
+
+                droplet.voxels[index] = if group_has_path_to_surface {
+                    Voxel::ExternalAir
+                } else {
+                    Voxel::TrappedAir
+                }
+            });
+        }
 
         Ok(droplet)
     }
@@ -69,20 +137,27 @@ impl LavaDroplet {
             || y as usize >= self.bounds.1
             || z as usize >= self.bounds.2
         {
-            Voxel::Air
+            Voxel::ExternalAir
         } else {
             self.voxels[self.index(x as usize, y as usize, z as usize)]
         }
     }
 
-    fn surface_area(&self) -> u32 {
+    fn total_surface_area(&self) -> u32 {
         let mut surface_area = 0;
 
         for x in 0..self.bounds.0 {
             for y in 0..self.bounds.1 {
                 for z in 0..self.bounds.2 {
                     if matches!(self.voxel(x as isize, y as isize, z as isize), Voxel::Lava) {
-                        surface_area += self.voxel_surface_area(x, y, z);
+                        surface_area += self
+                            .neighbors(x, y, z)
+                            .iter()
+                            .map(|&(neighbor_x, neighbor_y, neighbor_z)| {
+                                self.voxel(neighbor_x, neighbor_y, neighbor_z)
+                            })
+                            .filter(|voxel| !matches!(voxel, Voxel::Lava))
+                            .count() as u32;
                     }
                 }
             }
@@ -91,7 +166,30 @@ impl LavaDroplet {
         surface_area
     }
 
-    fn voxel_surface_area(&self, x: usize, y: usize, z: usize) -> u32 {
+    fn external_surface_area(&self) -> u32 {
+        let mut surface_area = 0;
+
+        for x in 0..self.bounds.0 {
+            for y in 0..self.bounds.1 {
+                for z in 0..self.bounds.2 {
+                    if matches!(self.voxel(x as isize, y as isize, z as isize), Voxel::Lava) {
+                        surface_area += self
+                            .neighbors(x, y, z)
+                            .iter()
+                            .map(|&(neighbor_x, neighbor_y, neighbor_z)| {
+                                self.voxel(neighbor_x, neighbor_y, neighbor_z)
+                            })
+                            .filter(|voxel| matches!(voxel, Voxel::ExternalAir))
+                            .count() as u32;
+                    }
+                }
+            }
+        }
+
+        surface_area
+    }
+
+    fn neighbors(&self, x: usize, y: usize, z: usize) -> [(isize, isize, isize); 6] {
         [
             (x as isize + 1, y as isize, z as isize),
             (x as isize - 1, y as isize, z as isize),
@@ -100,16 +198,13 @@ impl LavaDroplet {
             (x as isize, y as isize, z as isize + 1),
             (x as isize, y as isize, z as isize - 1),
         ]
-        .iter()
-        .map(|&(neighbor_x, neighbor_y, neighbor_z)| self.voxel(neighbor_x, neighbor_y, neighbor_z))
-        .filter(|voxel| matches!(voxel, Voxel::Air))
-        .count() as u32
     }
 }
 
 #[derive(Copy, Clone)]
 enum Voxel {
-    Air,
+    ExternalAir,
+    TrappedAir,
     Lava,
 }
 
@@ -135,15 +230,28 @@ mod test {
     "};
 
     #[test]
-    fn test_surface_area() {
+    fn test_total_surface_area() {
         {
             let droplet = LavaDroplet::from_str("1,1,1\n2,1,1").unwrap();
-            assert_eq!(10, droplet.surface_area());
+            assert_eq!(10, droplet.total_surface_area());
         }
 
         {
             let droplet = LavaDroplet::from_str(TEST_DROPLET).unwrap();
-            assert_eq!(64, droplet.surface_area());
+            assert_eq!(64, droplet.total_surface_area());
+        }
+    }
+
+    #[test]
+    fn test_external_surface_area() {
+        {
+            let droplet = LavaDroplet::from_str("1,1,1\n2,1,1").unwrap();
+            assert_eq!(10, droplet.external_surface_area());
+        }
+
+        {
+            let droplet = LavaDroplet::from_str(TEST_DROPLET).unwrap();
+            assert_eq!(58, droplet.external_surface_area());
         }
     }
 }
