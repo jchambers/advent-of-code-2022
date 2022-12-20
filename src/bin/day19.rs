@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::error::Error;
+use std::fs;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
 
@@ -10,9 +11,41 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(path) = args.get(1) {
+        let factory = RobotFactory::from_str(fs::read_to_string(path)?.as_str())?;
+
+        println!("Sum of quality levels of blueprints: {}", factory.quality_level_sum());
+
         Ok(())
     } else {
-        Err("Usage: day18 INPUT_FILE_PATH".into())
+        Err("Usage: day19 INPUT_FILE_PATH".into())
+    }
+}
+
+struct RobotFactory {
+    blueprints: Vec<Blueprint>,
+}
+
+impl RobotFactory {
+    fn quality_level_sum(&self) -> u32 {
+        self.blueprints
+            .iter()
+            .map(|blueprint| blueprint.optimize_geodes(24) as u32)
+            .enumerate()
+            .map(|(i, geodes)| (i as u32 + 1) * geodes)
+            .sum()
+    }
+}
+
+impl FromStr for RobotFactory {
+    type Err = Box<dyn Error>;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let blueprints: Vec<Blueprint> = string
+            .lines()
+            .map(Blueprint::from_str)
+            .collect::<Result<_, _>>()?;
+
+        Ok(RobotFactory { blueprints })
     }
 }
 
@@ -237,5 +270,12 @@ mod test {
 
         assert_eq!(9, blueprints[0].optimize_geodes(24));
         assert_eq!(12, blueprints[1].optimize_geodes(24));
+    }
+
+    #[test]
+    fn test_quality_level_sum() {
+        let factory = RobotFactory::from_str(TEST_BLUEPRINTS).unwrap();
+
+        assert_eq!(33, factory.quality_level_sum());
     }
 }
