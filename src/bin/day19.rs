@@ -1,7 +1,7 @@
-use std::cmp::Ordering;
-use std::collections::HashSet;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
 use std::ops::{Add, Sub};
@@ -13,7 +13,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(path) = args.get(1) {
         let factory = RobotFactory::from_str(fs::read_to_string(path)?.as_str())?;
 
-        println!("Sum of quality levels of blueprints: {}", factory.quality_level_sum());
+        println!(
+            "Sum of quality levels of blueprints: {}",
+            factory.quality_level_sum()
+        );
 
         Ok(())
     } else {
@@ -60,7 +63,9 @@ impl Blueprint {
     fn optimize_geodes(&self, time_limit: u32) -> u16 {
         // See day 19 notes for a full explanation, but in short, we never want to produce more of
         // any kind of resource than we can spend in a single turn.
-        let max_ore_robots = self.clay_robot_cost.ore
+        let max_ore_robots = self
+            .clay_robot_cost
+            .ore
             .max(self.obsidian_robot_cost.ore)
             .max(self.geode_robot_cost.ore);
 
@@ -73,7 +78,6 @@ impl Blueprint {
             let mut next_production_states = HashSet::new();
 
             for production_state in &production_states {
-
                 // Simply waiting and taking no action is always an option if we can't build a geode
                 // robot
                 next_production_states.insert(ProductionState {
@@ -81,7 +85,9 @@ impl Blueprint {
                     resources: production_state.resources + production_state.robots,
                 });
 
-                if production_state.robots.ore < max_ore_robots && self.ore_robot_cost <= production_state.resources {
+                if production_state.robots.ore < max_ore_robots
+                    && self.ore_robot_cost <= production_state.resources
+                {
                     const ORE_ROBOT: Resources = Resources {
                         ore: 1,
                         clay: 0,
@@ -91,11 +97,14 @@ impl Blueprint {
 
                     next_production_states.insert(ProductionState {
                         robots: production_state.robots + ORE_ROBOT,
-                        resources: production_state.resources - self.ore_robot_cost + production_state.robots,
+                        resources: production_state.resources - self.ore_robot_cost
+                            + production_state.robots,
                     });
                 }
 
-                if production_state.robots.clay < max_clay_robots && self.clay_robot_cost <= production_state.resources {
+                if production_state.robots.clay < max_clay_robots
+                    && self.clay_robot_cost <= production_state.resources
+                {
                     const CLAY_ROBOT: Resources = Resources {
                         ore: 0,
                         clay: 1,
@@ -105,11 +114,14 @@ impl Blueprint {
 
                     next_production_states.insert(ProductionState {
                         robots: production_state.robots + CLAY_ROBOT,
-                        resources: production_state.resources - self.clay_robot_cost + production_state.robots,
+                        resources: production_state.resources - self.clay_robot_cost
+                            + production_state.robots,
                     });
                 }
 
-                if production_state.robots.obsidian < max_obsidian_robots && self.obsidian_robot_cost <= production_state.resources {
+                if production_state.robots.obsidian < max_obsidian_robots
+                    && self.obsidian_robot_cost <= production_state.resources
+                {
                     const OBSIDIAN_ROBOT: Resources = Resources {
                         ore: 0,
                         clay: 0,
@@ -119,7 +131,8 @@ impl Blueprint {
 
                     next_production_states.insert(ProductionState {
                         robots: production_state.robots + OBSIDIAN_ROBOT,
-                        resources: production_state.resources - self.obsidian_robot_cost + production_state.robots,
+                        resources: production_state.resources - self.obsidian_robot_cost
+                            + production_state.robots,
                     });
                 }
 
@@ -133,7 +146,8 @@ impl Blueprint {
 
                     next_production_states.insert(ProductionState {
                         robots: production_state.robots + GEODE_ROBOT,
-                        resources: production_state.resources - self.geode_robot_cost + production_state.robots,
+                        resources: production_state.resources - self.geode_robot_cost
+                            + production_state.robots,
                     });
                 }
             }
@@ -162,10 +176,30 @@ impl FromStr for Blueprint {
 
         if let Some(captures) = BLUEPRINT_PATTERN.captures(string) {
             Ok(Blueprint {
-                ore_robot_cost: Resources { ore: captures[1].parse()?, clay: 0, obsidian: 0, geodes: 0, },
-                clay_robot_cost: Resources { ore: captures[2].parse()?, clay: 0, obsidian: 0, geodes: 0, },
-                obsidian_robot_cost: Resources { ore: captures[3].parse()?, clay: captures[4].parse()?, obsidian: 0, geodes: 0, },
-                geode_robot_cost: Resources { ore: captures[5].parse()?, clay: 0, obsidian: captures[6].parse()?, geodes: 0, },
+                ore_robot_cost: Resources {
+                    ore: captures[1].parse()?,
+                    clay: 0,
+                    obsidian: 0,
+                    geodes: 0,
+                },
+                clay_robot_cost: Resources {
+                    ore: captures[2].parse()?,
+                    clay: 0,
+                    obsidian: 0,
+                    geodes: 0,
+                },
+                obsidian_robot_cost: Resources {
+                    ore: captures[3].parse()?,
+                    clay: captures[4].parse()?,
+                    obsidian: 0,
+                    geodes: 0,
+                },
+                geode_robot_cost: Resources {
+                    ore: captures[5].parse()?,
+                    clay: 0,
+                    obsidian: captures[6].parse()?,
+                    geodes: 0,
+                },
             })
         } else {
             Err("Could not parse blueprint".into())
@@ -183,9 +217,17 @@ struct Resources {
 
 impl PartialOrd for Resources {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.ore == other.ore && self.clay == other.clay && self.obsidian == other.obsidian && self.geodes == other.geodes {
+        if self.ore == other.ore
+            && self.clay == other.clay
+            && self.obsidian == other.obsidian
+            && self.geodes == other.geodes
+        {
             Some(Ordering::Equal)
-        } else if self.ore <= other.ore && self.clay <= other.clay && self.obsidian <= other.obsidian && self.geodes <= other.geodes {
+        } else if self.ore <= other.ore
+            && self.clay <= other.clay
+            && self.obsidian <= other.obsidian
+            && self.geodes <= other.geodes
+        {
             Some(Ordering::Less)
         } else {
             Some(Ordering::Greater)
@@ -252,8 +294,8 @@ impl Default for ProductionState {
 
 #[cfg(test)]
 mod test {
-    use indoc::indoc;
     use super::*;
+    use indoc::indoc;
 
     const TEST_BLUEPRINTS: &str = indoc! {"
         Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.
