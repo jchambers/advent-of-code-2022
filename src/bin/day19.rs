@@ -25,19 +25,30 @@ struct Blueprint {
 
 impl Blueprint {
     fn optimize_geodes(&self, time_limit: u32) -> u16 {
+        // See day 19 notes for a full explanation, but in short, we never want to produce more of
+        // any kind of resource than we can spend in a single turn.
+        let max_ore_robots = self.clay_robot_cost.ore
+            .max(self.obsidian_robot_cost.ore)
+            .max(self.geode_robot_cost.ore);
+
+        let max_clay_robots = self.obsidian_robot_cost.clay;
+        let max_obsidian_robots = self.geode_robot_cost.obsidian;
+
         let mut production_states = HashSet::from([ProductionState::default()]);
 
         for _ in 0..time_limit {
             let mut next_production_states = HashSet::new();
 
             for production_state in &production_states {
-                // Simply waiting and taking no action is always an option
+
+                // Simply waiting and taking no action is always an option if we can't build a geode
+                // robot
                 next_production_states.insert(ProductionState {
                     robots: production_state.robots,
                     resources: production_state.resources + production_state.robots,
                 });
 
-                if self.ore_robot_cost <= production_state.resources {
+                if production_state.robots.ore < max_ore_robots && self.ore_robot_cost <= production_state.resources {
                     const ORE_ROBOT: Resources = Resources {
                         ore: 1,
                         clay: 0,
@@ -51,7 +62,7 @@ impl Blueprint {
                     });
                 }
 
-                if self.clay_robot_cost <= production_state.resources {
+                if production_state.robots.clay < max_clay_robots && self.clay_robot_cost <= production_state.resources {
                     const CLAY_ROBOT: Resources = Resources {
                         ore: 0,
                         clay: 1,
@@ -65,7 +76,7 @@ impl Blueprint {
                     });
                 }
 
-                if self.obsidian_robot_cost <= production_state.resources {
+                if production_state.robots.obsidian < max_obsidian_robots && self.obsidian_robot_cost <= production_state.resources {
                     const OBSIDIAN_ROBOT: Resources = Resources {
                         ore: 0,
                         clay: 0,
