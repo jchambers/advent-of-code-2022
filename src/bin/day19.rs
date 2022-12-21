@@ -78,13 +78,6 @@ impl Blueprint {
             let mut next_production_states = HashSet::new();
 
             for production_state in &production_states {
-                // Simply waiting and taking no action is always an option if we can't build a geode
-                // robot
-                next_production_states.insert(ProductionState {
-                    robots: production_state.robots,
-                    resources: production_state.resources + production_state.robots,
-                });
-
                 if production_state.robots.ore < max_ore_robots
                     && self.ore_robot_cost <= production_state.resources
                 {
@@ -148,6 +141,13 @@ impl Blueprint {
                         robots: production_state.robots + GEODE_ROBOT,
                         resources: production_state.resources - self.geode_robot_cost
                             + production_state.robots,
+                    });
+                } else {
+                    // Simply waiting and taking no action is always an option if we can't build a geode
+                    // robot
+                    next_production_states.insert(ProductionState {
+                        robots: production_state.robots,
+                        resources: production_state.resources + production_state.robots,
                     });
                 }
             }
