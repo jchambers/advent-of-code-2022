@@ -14,8 +14,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         let factory = RobotFactory::from_str(fs::read_to_string(path)?.as_str())?;
 
         println!(
-            "Sum of quality levels of blueprints: {}",
-            factory.quality_level_sum()
+            "Sum of quality levels of blueprints after 24 minutes: {}",
+            factory.quality_level_sum(24)
+        );
+
+        println!(
+            "Product of geodes from first three plans after 32 minutes: {}",
+            factory.optimal_geode_product(3, 32)
         );
 
         Ok(())
@@ -29,13 +34,21 @@ struct RobotFactory {
 }
 
 impl RobotFactory {
-    fn quality_level_sum(&self) -> u32 {
+    fn quality_level_sum(&self, time_limit: u32) -> u32 {
         self.blueprints
             .iter()
-            .map(|blueprint| blueprint.optimize_geodes(24) as u32)
+            .map(|blueprint| blueprint.optimize_geodes(time_limit) as u32)
             .enumerate()
             .map(|(i, geodes)| (i as u32 + 1) * geodes)
             .sum()
+    }
+
+    fn optimal_geode_product(&self, plans: usize, time_limit: u32) -> u32 {
+        self.blueprints
+            .iter()
+            .take(plans)
+            .map(|blueprint| blueprint.optimize_geodes(time_limit) as u32)
+            .product()
     }
 }
 
@@ -394,6 +407,6 @@ mod test {
     fn test_quality_level_sum() {
         let factory = RobotFactory::from_str(TEST_BLUEPRINTS).unwrap();
 
-        assert_eq!(33, factory.quality_level_sum());
+        assert_eq!(33, factory.quality_level_sum(24));
     }
 }
