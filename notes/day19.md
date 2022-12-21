@@ -147,3 +147,27 @@ Let's assume that's an upper bound for all of the resource types (it's not, but 
 …which is still entirely impractical.
 
 But ideally we don't need to explore the whole space. How can we prune it?
+
+## Practically-equivalent states
+
+At some point, even though the precise resource counts may be different, two states may be practically equivalent. If we have LIKE A BILLION ore in one state and LIKE TWO BILLION in another, both cases are equivalent in that we have way more ore than we can spend over the course of the simulation. Can we collapse those states to prune the search space?
+
+At a given time, we can figure out the maximum amount of a resource we could practically spend for the rest of the simulation by finding the highest-cost thing we can spend those resources on and then assuming we can build one of those things every turn for the rest of the simulation. If our reserves plus expected production exceed that amount, then _both_ the resource count and the robot count for that resource are practically unlimited.
+
+Proving that last part to myself, I think we want:
+
+```
+resources_by_end_of_simulation = current_reserves + (production_capacity * t)
+maximum_resource_spend = highest_cost * t
+```
+
+Another way of thinking about it: given a certain amount of a resource in inventory, a production rate, and a maximum spending rate, we can figure out if we'll run out of resources before the end of the simulation. We're in "practically unlimited" territory if:
+
+```
+current_reserves >= (production_capacity - spending_rate) * t_remaining
+```
+
+Knowing that we're in this state has two big benefits:
+
+1. We know we don't need to build any more robots for that resource type and
+2. We can collapse a bunch of similar states into one, reducing branching
