@@ -61,24 +61,28 @@ struct Blueprint {
 
 impl Blueprint {
     fn optimize_geodes(&self, time_limit: u32) -> u16 {
-        // See day 19 notes for a full explanation, but in short, we never want to produce more of
-        // any kind of resource than we can spend in a single turn.
-        let max_ore_robots = self
-            .clay_robot_cost
-            .ore
-            .max(self.obsidian_robot_cost.ore)
-            .max(self.geode_robot_cost.ore);
+        const PRACTICALLY_UNLIMITED: u16 = u16::MAX;
 
-        let max_clay_robots = self.obsidian_robot_cost.clay;
-        let max_obsidian_robots = self.geode_robot_cost.obsidian;
+        let max_spend_rates = Resources {
+            ore: self
+                .clay_robot_cost
+                .ore
+                .max(self.obsidian_robot_cost.ore)
+                .max(self.geode_robot_cost.ore),
+            clay: self.obsidian_robot_cost.clay,
+            obsidian: self.geode_robot_cost.obsidian,
+            geodes: PRACTICALLY_UNLIMITED,
+        };
 
         let mut production_states = HashSet::from([ProductionState::default()]);
 
-        for _ in 0..time_limit {
+        for time in 0..time_limit {
+            let time_remaining = (time_limit - time) as u16;
+
             let mut next_production_states = HashSet::new();
 
             for production_state in &production_states {
-                if production_state.robots.ore < max_ore_robots
+                if production_state.robots.ore != PRACTICALLY_UNLIMITED
                     && self.ore_robot_cost <= production_state.resources
                 {
                     const ORE_ROBOT: Resources = Resources {
@@ -88,14 +92,24 @@ impl Blueprint {
                         geodes: 0,
                     };
 
-                    next_production_states.insert(ProductionState {
+                    let mut next_state = ProductionState {
                         robots: production_state.robots + ORE_ROBOT,
                         resources: production_state.resources - self.ore_robot_cost
                             + production_state.robots,
-                    });
+                    };
+
+                    // Coalesce all "more than we can possibly spend" states
+                    if next_state.resources.ore + (next_state.robots.ore * (time_remaining - 1))
+                        >= max_spend_rates.ore * time_remaining
+                    {
+                        next_state.robots.ore = PRACTICALLY_UNLIMITED;
+                        next_state.resources.ore = PRACTICALLY_UNLIMITED;
+                    }
+
+                    next_production_states.insert(next_state);
                 }
 
-                if production_state.robots.clay < max_clay_robots
+                if production_state.robots.clay != PRACTICALLY_UNLIMITED
                     && self.clay_robot_cost <= production_state.resources
                 {
                     const CLAY_ROBOT: Resources = Resources {
@@ -105,14 +119,24 @@ impl Blueprint {
                         geodes: 0,
                     };
 
-                    next_production_states.insert(ProductionState {
+                    let mut next_state = ProductionState {
                         robots: production_state.robots + CLAY_ROBOT,
                         resources: production_state.resources - self.clay_robot_cost
                             + production_state.robots,
-                    });
+                    };
+
+                    // Coalesce all "more than we can possibly spend" states
+                    if next_state.resources.clay + (next_state.robots.clay * (time_remaining - 1))
+                        >= max_spend_rates.clay * time_remaining
+                    {
+                        next_state.robots.clay = PRACTICALLY_UNLIMITED;
+                        next_state.resources.clay = PRACTICALLY_UNLIMITED;
+                    }
+
+                    next_production_states.insert(next_state);
                 }
 
-                if production_state.robots.obsidian < max_obsidian_robots
+                if production_state.robots.obsidian != PRACTICALLY_UNLIMITED
                     && self.obsidian_robot_cost <= production_state.resources
                 {
                     const OBSIDIAN_ROBOT: Resources = Resources {
@@ -122,11 +146,22 @@ impl Blueprint {
                         geodes: 0,
                     };
 
-                    next_production_states.insert(ProductionState {
+                    let mut next_state = ProductionState {
                         robots: production_state.robots + OBSIDIAN_ROBOT,
                         resources: production_state.resources - self.obsidian_robot_cost
                             + production_state.robots,
-                    });
+                    };
+
+                    // Coalesce all "more than we can possibly spend" states
+                    if next_state.resources.obsidian
+                        + (next_state.robots.obsidian * (time_remaining - 1))
+                        >= max_spend_rates.obsidian * time_remaining
+                    {
+                        next_state.robots.obsidian = PRACTICALLY_UNLIMITED;
+                        next_state.resources.obsidian = PRACTICALLY_UNLIMITED;
+                    }
+
+                    next_production_states.insert(next_state);
                 }
 
                 if self.geode_robot_cost <= production_state.resources {
@@ -143,8 +178,8 @@ impl Blueprint {
                             + production_state.robots,
                     });
                 } else {
-                    // Simply waiting and taking no action is always an option if we can't build a geode
-                    // robot
+                    // Simply waiting and taking no action is always an option if we can't build a
+                    // geode robot
                     next_production_states.insert(ProductionState {
                         robots: production_state.robots,
                         resources: production_state.resources + production_state.robots,
@@ -240,10 +275,29 @@ impl Add for Resources {
 
     fn add(self, addend: Self) -> Self::Output {
         Resources {
-            ore: self.ore + addend.ore,
-            clay: self.clay + addend.clay,
-            obsidian: self.obsidian + addend.obsidian,
-            geodes: self.geodes + addend.geodes,
+            ore: if self.ore == u16::MAX {
+                u16::MAX
+            } else {
+                self.ore + addend.ore
+            },
+
+            clay: if self.clay == u16::MAX {
+                u16::MAX
+            } else {
+                self.clay + addend.clay
+            },
+
+            obsidian: if self.obsidian == u16::MAX {
+                u16::MAX
+            } else {
+                self.obsidian + addend.obsidian
+            },
+
+            geodes: if self.geodes == u16::MAX {
+                u16::MAX
+            } else {
+                self.geodes + addend.geodes
+            },
         }
     }
 }
@@ -253,10 +307,29 @@ impl Sub for Resources {
 
     fn sub(self, subtrahend: Self) -> Self::Output {
         Resources {
-            ore: self.ore - subtrahend.ore,
-            clay: self.clay - subtrahend.clay,
-            obsidian: self.obsidian - subtrahend.obsidian,
-            geodes: self.geodes - subtrahend.geodes,
+            ore: if self.ore == u16::MAX {
+                u16::MAX
+            } else {
+                self.ore - subtrahend.ore
+            },
+
+            clay: if self.clay == u16::MAX {
+                u16::MAX
+            } else {
+                self.clay - subtrahend.clay
+            },
+
+            obsidian: if self.obsidian == u16::MAX {
+                u16::MAX
+            } else {
+                self.obsidian - subtrahend.obsidian
+            },
+
+            geodes: if self.geodes == u16::MAX {
+                u16::MAX
+            } else {
+                self.geodes - subtrahend.geodes
+            },
         }
     }
 }
@@ -312,6 +385,9 @@ mod test {
 
         assert_eq!(9, blueprints[0].optimize_geodes(24));
         assert_eq!(12, blueprints[1].optimize_geodes(24));
+
+        assert_eq!(56, blueprints[0].optimize_geodes(32));
+        assert_eq!(62, blueprints[1].optimize_geodes(32));
     }
 
     #[test]

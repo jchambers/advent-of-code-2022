@@ -164,10 +164,11 @@ maximum_resource_spend = highest_cost * t
 Another way of thinking about it: given a certain amount of a resource in inventory, a production rate, and a maximum spending rate, we can figure out if we'll run out of resources before the end of the simulation. We're in "practically unlimited" territory if:
 
 ```
-current_reserves >= (production_capacity - spending_rate) * t_remaining
+current_reserves + (production_capacity * t_remaining) >= spending_rate * t_remaining
 ```
 
 Knowing that we're in this state has two big benefits:
 
 1. We know we don't need to build any more robots for that resource type and
 2. We can collapse a bunch of similar states into one, reducing branching
+
