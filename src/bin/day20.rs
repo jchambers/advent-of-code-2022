@@ -6,15 +6,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(path) = args.get(1) {
-        let values: Vec<i32> = BufReader::new(File::open(path)?)
+        let values: Vec<i64> = BufReader::new(File::open(path)?)
             .lines()
             .filter_map(|line| line.ok())
             .map(|line| line.parse())
             .collect::<Result<_, _>>()?;
 
-        let gps = GrovePositioningSystem::try_from(values.as_slice())?;
+        let mut gps = GrovePositioningSystem::try_from(values.as_slice())?;
 
-        println!("Coordinate sum: {}", gps.coordinate_sum());
+        println!(
+            "Coordinate sum with key = 1, mixing rounds = 1: {}",
+            gps.coordinate_sum(1, 1)
+        );
+
+        println!(
+            "Coordinate sum with key = 811589153, mixing rounds = 10: {}",
+            gps.coordinate_sum(811589153, 10)
+        );
 
         Ok(())
     } else {
@@ -32,12 +40,12 @@ impl GrovePositioningSystem {
         unsafe { &*(self.ring) }
     }
 
-    unsafe fn mix(&mut self) {
+    unsafe fn mix(&mut self, decryption_key: i64) {
         let mut node = self.ring;
 
         loop {
             // `len - 1` in this case because the list no longer contains `node`
-            let move_distance = (*node).value % (self.len - 1) as i32;
+            let move_distance = ((*node).value * decryption_key) % (self.len - 1) as i64;
 
             if move_distance != 0 {
                 // Remove `node` from its current position
@@ -77,7 +85,32 @@ impl GrovePositioningSystem {
         }
     }
 
-    fn coordinate_sum(&self) -> i32 {
+    fn reset(&mut self) {
+        let mut node = self.ring;
+
+        loop {
+            unsafe {
+                (*node).mixed_next = (*node).original_next;
+                (*node).mixed_prev = (*node).original_prev;
+
+                node = (*node).original_next;
+            }
+
+            if std::ptr::eq(node, self.ring) {
+                break;
+            }
+        }
+    }
+
+    fn coordinate_sum(&mut self, decryption_key: i64, mixing_rounds: usize) -> i64 {
+        self.reset();
+
+        for _ in 0..mixing_rounds {
+            unsafe {
+                self.mix(decryption_key);
+            }
+        }
+
         let mut node = {
             let mut node = self.ring();
 
@@ -97,17 +130,17 @@ impl GrovePositioningSystem {
                 node = node.mixed_next();
             }
 
-            sum += node.value;
+            sum += node.value * decryption_key;
         }
 
         sum
     }
 }
 
-impl TryFrom<&[i32]> for GrovePositioningSystem {
+impl TryFrom<&[i64]> for GrovePositioningSystem {
     type Error = Box<dyn Error>;
 
-    fn try_from(values: &[i32]) -> Result<Self, Self::Error> {
+    fn try_from(values: &[i64]) -> Result<Self, Self::Error> {
         if values.is_empty() {
             Err("Values must not be empty".into())
         } else {
@@ -139,14 +172,10 @@ impl TryFrom<&[i32]> for GrovePositioningSystem {
                 }
             }
 
-            let mut gps = Self {
+            let gps = Self {
                 ring: head,
                 len: values.len(),
             };
-
-            unsafe {
-                gps.mix();
-            }
 
             Ok(gps)
         }
@@ -154,7 +183,7 @@ impl TryFrom<&[i32]> for GrovePositioningSystem {
 }
 
 impl RingNode {
-    fn new(value: i32) -> Self {
+    fn new(value: i64) -> Self {
         RingNode {
             original_next: std::ptr::null_mut(),
             original_prev: std::ptr::null_mut(),
@@ -174,7 +203,7 @@ struct RingNode {
     mixed_next: *mut RingNode,
     mixed_prev: *mut RingNode,
 
-    value: i32,
+    value: i64,
 }
 
 impl RingNode {
@@ -191,11 +220,15 @@ impl RingNode {
 mod test {
     use super::*;
 
-    const TEST_NUMBERS: [i32; 7] = [1, 2, -3, 3, -2, 0, 4];
+    const TEST_NUMBERS: [i64; 7] = [1, 2, -3, 3, -2, 0, 4];
 
     #[test]
     fn test_mix() {
-        let gps = GrovePositioningSystem::try_from(TEST_NUMBERS.as_slice()).unwrap();
+        let mut gps = GrovePositioningSystem::try_from(TEST_NUMBERS.as_slice()).unwrap();
+
+        unsafe {
+            gps.mix(1);
+        }
 
         {
             let mut ring = gps.ring();
@@ -232,7 +265,8 @@ mod test {
 
     #[test]
     fn test_coordinate_sum() {
-        let gps = GrovePositioningSystem::try_from(TEST_NUMBERS.as_slice()).unwrap();
-        assert_eq!(3, gps.coordinate_sum());
+        let mut gps = GrovePositioningSystem::try_from(TEST_NUMBERS.as_slice()).unwrap();
+        assert_eq!(3, gps.coordinate_sum(1, 1));
+        assert_eq!(1623178306, gps.coordinate_sum(811589153, 10));
     }
 }
