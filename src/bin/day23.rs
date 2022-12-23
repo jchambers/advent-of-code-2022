@@ -62,7 +62,8 @@ impl Grove {
             Direction::East,
         ];
 
-        let mut proposals: HashMap<(i32, i32), Vec<(i32, i32)>> = HashMap::new();
+        let mut proposals: HashMap<(i32, i32), Vec<(i32, i32)>> =
+            HashMap::with_capacity(self.elves.len());
 
         for (x, y) in &self.elves {
             let mut has_neighbor = false;
