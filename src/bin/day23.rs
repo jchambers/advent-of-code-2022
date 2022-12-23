@@ -19,6 +19,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             grove.empty_ground_tiles()
         );
 
+        while grove.advance_round() {}
+
+        println!("First round without movement: {}", grove.round + 1);
+
         Ok(())
     } else {
         Err("Usage: day23 INPUT_FILE_PATH".into())
@@ -50,7 +54,7 @@ impl Grove {
         area - self.elves.len() as u32
     }
 
-    fn advance_round(&mut self) {
+    fn advance_round(&mut self) -> bool {
         const SEARCH_ORDER: [Direction; 4] = [
             Direction::North,
             Direction::South,
@@ -102,14 +106,22 @@ impl Grove {
             }
         }
 
+        let mut accepted_proposal = false;
+
         for (proposal, elves) in proposals {
             if elves.len() == 1 {
                 self.elves.remove(&elves[0]);
                 self.elves.insert(proposal);
+
+                accepted_proposal = true;
             }
         }
 
-        self.round += 1;
+        if accepted_proposal {
+            self.round += 1;
+        }
+
+        accepted_proposal
     }
 }
 
@@ -186,10 +198,19 @@ mod test {
     fn test_advance_round() {
         let mut grove = Grove::from_str(TEST_GROVE).unwrap();
 
-        for round in 0..10 {
+        for _ in 0..10 {
             grove.advance_round();
         }
 
         assert_eq!(110, grove.empty_ground_tiles());
+    }
+
+    #[test]
+    fn test_rounds_until_settled() {
+        let mut grove = Grove::from_str(TEST_GROVE).unwrap();
+
+        while grove.advance_round() {}
+
+        assert_eq!(19, grove.round);
     }
 }
