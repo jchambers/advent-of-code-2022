@@ -1,13 +1,24 @@
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::iter;
 use std::str::FromStr;
+use std::{fs, iter};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(path) = args.get(1) {
+        let mut grove = Grove::from_str(fs::read_to_string(path)?.as_str())?;
+
+        for _ in 0..10 {
+            grove.advance_round();
+        }
+
+        println!(
+            "Empty ground tiles after 10 rounds: {}",
+            grove.empty_ground_tiles()
+        );
+
         Ok(())
     } else {
         Err("Usage: day23 INPUT_FILE_PATH".into())
@@ -21,11 +32,15 @@ struct Grove {
 
 impl Grove {
     fn bounds(&self) -> ((i32, i32), (i32, i32)) {
-        self.elves
-            .iter()
-            .fold(((i32::MAX, i32::MAX), (i32::MIN, i32::MIN)), |bounds, (x, y)| {
-                ((bounds.0.0.min(*x), bounds.0.1.min(*y)), (bounds.1.0.max(*x), bounds.1.1.max(*y)))
-            })
+        self.elves.iter().fold(
+            ((i32::MAX, i32::MAX), (i32::MIN, i32::MIN)),
+            |bounds, (x, y)| {
+                (
+                    (bounds.0 .0.min(*x), bounds.0 .1.min(*y)),
+                    (bounds.1 .0.max(*x), bounds.1 .1.max(*y)),
+                )
+            },
+        )
     }
 
     fn empty_ground_tiles(&self) -> u32 {
@@ -40,7 +55,7 @@ impl Grove {
             Direction::North,
             Direction::South,
             Direction::West,
-            Direction::East
+            Direction::East,
         ];
 
         let mut proposals: HashMap<(i32, i32), Vec<(i32, i32)>> = HashMap::new();
@@ -50,8 +65,10 @@ impl Grove {
 
             'neighbor_search: for neighbor_x in x - 1..=x + 1 {
                 for neighbor_y in y - 1..=y + 1 {
-                    // Ignore ourselves when counting neighbors
-                    if neighbor_x != *x && neighbor_y != *y && self.elves.contains(&(neighbor_x, neighbor_y)) {
+                    // Ignore ourselves when searching for neighbors
+                    if !(neighbor_x == *x && neighbor_y == *y)
+                        && self.elves.contains(&(neighbor_x, neighbor_y))
+                    {
                         has_neighbor = true;
                         break 'neighbor_search;
                     }
@@ -60,21 +77,13 @@ impl Grove {
 
             if has_neighbor {
                 for d in 0..SEARCH_ORDER.len() {
-                    let direction = &SEARCH_ORDER[d % SEARCH_ORDER.len()];
+                    let direction = &SEARCH_ORDER[(d + self.round) % SEARCH_ORDER.len()];
 
                     let mut neighbors: Box<dyn Iterator<Item = (i32, i32)>> = match direction {
-                        Direction::North => {
-                            Box::new((x - 1..=x + 1).zip(iter::repeat(y - 1)))
-                        }
-                        Direction::South => {
-                            Box::new((x - 1..=x + 1).zip(iter::repeat(y + 1)))
-                        }
-                        Direction::East => {
-                            Box::new(iter::repeat(x + 1).zip(y - 1..=y + 1))
-                        }
-                        Direction::West => {
-                            Box::new(iter::repeat(x - 1).zip(y - 1..=y + 1))
-                        }
+                        Direction::North => Box::new((x - 1..=x + 1).zip(iter::repeat(y - 1))),
+                        Direction::South => Box::new((x - 1..=x + 1).zip(iter::repeat(y + 1))),
+                        Direction::East => Box::new(iter::repeat(x + 1).zip(y - 1..=y + 1)),
+                        Direction::West => Box::new(iter::repeat(x - 1).zip(y - 1..=y + 1)),
                     };
 
                     if neighbors.all(|neighbor| !self.elves.contains(&neighbor)) {
@@ -85,12 +94,7 @@ impl Grove {
                             Direction::West => (x - 1, *y),
                         };
 
-                        println!("Elf at ({}, {}) proposes moving {:?}", x, y, direction);
-
-                        proposals
-                            .entry(proposal)
-                            .or_default()
-                            .push((*x, *y));
+                        proposals.entry(proposal).or_default().push((*x, *y));
 
                         break;
                     }
@@ -116,19 +120,14 @@ impl FromStr for Grove {
         let mut elves = HashSet::new();
 
         for (y, line) in string.lines().enumerate() {
-            line.chars()
-                .enumerate()
-                .for_each(|(x, c)| {
-                    if c == '#' {
-                        elves.insert((x as i32, y as i32));
-                    }
-                });
+            line.chars().enumerate().for_each(|(x, c)| {
+                if c == '#' {
+                    elves.insert((x as i32, y as i32));
+                }
+            });
         }
 
-        Ok(Grove {
-            elves,
-            round: 0,
-        })
+        Ok(Grove { elves, round: 0 })
     }
 }
 
@@ -185,18 +184,12 @@ mod test {
 
     #[test]
     fn test_advance_round() {
-        let mut grove = Grove::from_str(indoc! {"
-            .....
-            ..##.
-            ..#..
-            .....
-            ..##.
-            .....
-        "}).unwrap();
+        let mut grove = Grove::from_str(TEST_GROVE).unwrap();
 
-        println!("{}\n-----\n", grove);
+        for round in 0..10 {
+            grove.advance_round();
+        }
 
-        grove.advance_round();
-        println!("{}\n-----\n", grove);
+        assert_eq!(110, grove.empty_ground_tiles());
     }
 }
