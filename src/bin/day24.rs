@@ -7,9 +7,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(path) = args.get(1) {
-        let valley = BlizzardValley::from_str(fs::read_to_string(path)?.as_str())?;
+        {
+            let valley = BlizzardValley::from_str(fs::read_to_string(path)?.as_str())?;
+            println!("Time to reach exit: {}", valley.fastest_time_to_exit());
+        }
 
-        println!("Time to reach exit: {}", valley.fastest_time_to_exit());
+        {
+            let valley = BlizzardValley::from_str(fs::read_to_string(path)?.as_str())?;
+
+            println!(
+                "Time to reach exit, then entrance, then exit: {}",
+                valley.fastest_time_to_exit_with_return_to_start()
+            );
+        }
 
         Ok(())
     } else {
@@ -31,17 +41,43 @@ struct BlizzardValley {
 
 impl BlizzardValley {
     fn fastest_time_to_exit(mut self) -> u32 {
-        const ENTRANCE: (usize, usize) = (0, 0);
-        let exit = (self.width - 1, self.height - 1);
+        let start = (0, 0);
+        let end = (self.width - 1, self.height - 1);
 
-        while !self.empty_positions().contains(&ENTRANCE) {
-            self.advance_time();
-        }
+        self.navigate(start, end);
 
-        let mut reachable_positions = HashSet::from([ENTRANCE]);
+        // We need one additional unit of time to step through the exit
+        self.elapsed_time + 1
+    }
+
+    fn fastest_time_to_exit_with_return_to_start(mut self) -> u32 {
+        let start = (0, 0);
+        let end = (self.width - 1, self.height - 1);
+
+        // Find a path from the start to the exit
+        self.navigate(start, end);
+
+        // Advance one unit of time while we step through the exit
+        self.advance_time();
+
+        // Find a path back from the exit to the entrance
+        self.navigate(end, start);
+
+        // Step back out through the entrance
+        self.advance_time();
+
+        // Find a path BACK to the exit
+        self.navigate(start, end);
+
+        // …and we need one additional unit of time to step through the exit
+        self.elapsed_time + 1
+    }
+
+    fn navigate(&mut self, start: (usize, usize), end: (usize, usize)) {
+        let mut reachable_positions = HashSet::new();
 
         loop {
-            if reachable_positions.contains(&exit) {
+            if reachable_positions.contains(&end) {
                 break;
             }
 
@@ -49,6 +85,10 @@ impl BlizzardValley {
             let empty_positions = self.empty_positions();
 
             let mut next_reachable_positions = HashSet::new();
+
+            if empty_positions.contains(&start) {
+                next_reachable_positions.insert(start);
+            }
 
             for (x, y) in reachable_positions {
                 next_reachable_positions.extend(
@@ -60,9 +100,6 @@ impl BlizzardValley {
 
             reachable_positions = next_reachable_positions;
         }
-
-        // We need one additional unit of time to actually step through the exit
-        self.elapsed_time + 1
     }
 
     fn neighbors(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
@@ -225,13 +262,7 @@ mod test {
         let mut valley = BlizzardValley::from_str(TEST_VALLEY).unwrap();
 
         {
-            let expected_empty_positions = HashSet::from([
-                (2, 0),
-                (0, 1),
-                (2, 1),
-                (3, 1),
-                (2, 2)]);
-
+            let expected_empty_positions = HashSet::from([(2, 0), (0, 1), (2, 1), (3, 1), (2, 2)]);
             assert_eq!(expected_empty_positions, valley.empty_positions());
         }
 
@@ -259,5 +290,11 @@ mod test {
     fn test_fastest_time_to_exit() {
         let valley = BlizzardValley::from_str(TEST_VALLEY).unwrap();
         assert_eq!(18, valley.fastest_time_to_exit());
+    }
+
+    #[test]
+    fn test_fastest_time_to_exit_with_return_to_start() {
+        let valley = BlizzardValley::from_str(TEST_VALLEY).unwrap();
+        assert_eq!(54, valley.fastest_time_to_exit_with_return_to_start());
     }
 }
