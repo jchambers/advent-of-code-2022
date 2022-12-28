@@ -13,12 +13,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             .map(|line| SnafuNumber::from_str(line.as_str()))
             .collect::<Result<_, _>>()?;
 
-        let sum: i64 = numbers
-            .iter()
-            .map(i64::from)
-            .sum();
+        let sum: i64 = numbers.iter().map(i64::from).sum();
 
-        println!("Sum of SNAFU numbers: {}", SnafuNumber::from(sum).to_string());
+        println!(
+            "Sum of SNAFU numbers: {}",
+            SnafuNumber::from(sum).to_string()
+        );
 
         Ok(())
     } else {
@@ -32,9 +32,7 @@ struct SnafuNumber {
 
 impl SnafuNumber {
     fn max(digits: usize) -> i64 {
-        (0..digits)
-            .map(|place| 2 * 5i64.pow(place as u32))
-            .sum()
+        (0..digits).map(|place| 2 * 5i64.pow(place as u32)).sum()
     }
 
     fn min(digits: usize) -> i64 {
@@ -57,7 +55,7 @@ impl FromStr for SnafuNumber {
                     '=' => Ok(-2),
                     _ => Err("Unexpected character".into()),
                 })
-                .collect::<Result<_, Box<dyn Error>>>()?
+                .collect::<Result<_, Box<dyn Error>>>()?,
         })
     }
 }
@@ -86,7 +84,8 @@ impl From<SnafuNumber> for i64 {
 
 impl From<&SnafuNumber> for i64 {
     fn from(snafu_number: &SnafuNumber) -> Self {
-        snafu_number.snafu_digits
+        snafu_number
+            .snafu_digits
             .iter()
             .rev()
             .enumerate()
@@ -104,13 +103,16 @@ impl From<i64> for SnafuNumber {
             loop {
                 digits_required += 1;
 
-                let min = 5i64.pow(digits_required - 1) + SnafuNumber::min(digits_required as usize - 1);
-                let max = 2 * 5i64.pow(digits_required - 1) + SnafuNumber::max(digits_required as usize - 1);
+                let min =
+                    5i64.pow(digits_required - 1) + SnafuNumber::min(digits_required as usize - 1);
+
+                let max = 2 * 5i64.pow(digits_required - 1)
+                    + SnafuNumber::max(digits_required as usize - 1);
 
                 if decimal >= min && decimal <= max {
                     break;
                 }
-            };
+            }
 
             vec![0i8; digits_required as usize]
         };
@@ -130,7 +132,11 @@ impl From<i64> for SnafuNumber {
             }
         }
 
-        SnafuNumber { snafu_digits: digits.iter().rev().copied().collect() }
+        digits.reverse();
+
+        SnafuNumber {
+            snafu_digits: digits,
+        }
     }
 }
 
